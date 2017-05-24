@@ -1,4 +1,4 @@
-cedar
+Cedar (June 24th 2014)
 =====
 This is a C++ implementation of efficiently-updatable double-array trie, developed by Naoki Yoshinaga at Kitsuregawa, Toyoda Lab., IIS, University of Tokyo.
 
@@ -8,7 +8,7 @@ If you make use of cedar for research or commercial purposes, the reference will
 
 License
 ======
-BSD (see License file)
+GNU GPLv2, LGPLv2.1, and BSD (see License file)
 
 Additionally the original code is also vailable under GPL/LGPL terms at the website location given below.
 
@@ -17,3 +17,22 @@ Author
 Naoki Yoshinaga at Kitsuregawa, Toyoda Lab., IIS, University of Tokyo
 
 Website: http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/cedar
+
+Setup
+======
+
+1. $ ./configure
+2. $ sudo make install
+
+For using as a library the only needed files are:
+
+- cedar.h
+- cedarpp.h
+
+There are standalone tools:
+
+- mkcedar: Create tree from text file
+- cedar: Interactive demo on different search functions
+- simple.cpp is a simple demo on usage (not compiled with make install)
+
+For detailed API reference visit the website: http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/cedar
