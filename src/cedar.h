@@ -1,13 +1,13 @@
 // cedar -- C++ implementation of Efficiently-updatable Double ARray trie
 //  $Id: cedar.h 1814 2014-05-07 03:42:04Z ynaga $
-//  
-//  Three trie implementations: a (normal) trie, a reduced trie [3] (compact size and faster look-up for short keys), 
+//
+//  Three trie implementations: a (normal) trie, a reduced trie [3] (compact size and faster look-up for short keys),
 //  a minimal-prefix trie (compact size for long keys).
 //  A reduced trie is enabled if you put #define USE_REDUCED_TRIE 1 before #include <cedar.h>,
 //  while a minimal-prefix trie is enabled if you #include <cedarpp.h> instead of cedar.h.
-//  
+//
 // Copyright (c) 2009-2014 Naoki Yoshinaga <ynaga@tkl.iis.u-tokyo.ac.jp>
-// 
+//
 #ifndef CEDAR_H
 #define CEDAR_H
 
@@ -41,7 +41,7 @@ namespace cedar {
     enum error_code { CEDAR_NO_VALUE = NO_VALUE, CEDAR_NO_PATH = NO_PATH, CEDAR_VALUE_LIMIT = 2147483647 };
     //
     typedef value_type result_type;
-    struct result_pair_type {
+    struct result_pair_type { // for prefix/suffix search
       value_type  value;
       size_t      length;  // prefix length
     };
@@ -81,9 +81,7 @@ namespace cedar {
     };
     //
     da () : tracking_node (), _array (0), _ninfo (0), _block (0), _bheadF (0), _bheadC (0), _bheadO (0), _capacity (0), _size (0), _no_delete (false), _reject () {
-      STATIC_ASSERT(sizeof (value_type) <= sizeof (int),
-                    value_type_is_not_supported___maintain_a_value_array_by_yourself_and_store_its_index
-                    );
+      STATIC_ASSERT(sizeof (value_type) <= sizeof (int), value_type_is_not_supported___maintain_a_value_array_by_yourself_and_store_its_index);
       _initialize ();
     }
     //
@@ -111,10 +109,10 @@ namespace cedar {
 #endif
       return i;
     }
-    // interfance
+    // ----------------------------------------------- BEGIN interfance ------------------------------------------------
+    // Returns CEDAR_NO_VALUE if search fails
     template <typename T>
-    T exactMatchSearch (const char* key) const
-    { return exactMatchSearch <T> (key, std::strlen (key)); }
+    T exactMatchSearch (const char* key) const { return exactMatchSearch <T> (key, std::strlen (key)); }
     //
     template <typename T>
     T exactMatchSearch (const char* key, size_t len, size_t from = 0) const {
@@ -126,25 +124,31 @@ namespace cedar {
       _set_result (&result, b.x, len, from);
       return result;
     }
-    //
+    // Returns the total number of matching items and maximum result_len number of items in result_len
     template <typename T>
     size_t commonPrefixSearch (const char* key, T* result, size_t result_len) const
     { return commonPrefixSearch (key, result, result_len, std::strlen (key)); }
-
+    //
     template <typename T>
     size_t commonPrefixSearch (const char* key, T* result, size_t result_len, size_t len, size_t from = 0) const {
       size_t num = 0;
       for (size_t pos = 0; pos < len; ) {
         union { int i; value_type x; } b;
-        b.i = _find (key, from, pos, pos + 1);
+        b.i = _find (key, from, pos, pos + 1); // Here pos is incremented
         if (b.i == CEDAR_NO_VALUE) continue;
         if (b.i == CEDAR_NO_PATH)  return num;
         if (num < result_len) _set_result (&result[num], b.x, pos, from);
-        ++num;
+        ++num; // If num > result_len there is more but could not be stored...
       }
       return num;
     }
     // predict key from double array
+    /*
+     * Predict suffixes following given key of length = len from a node at from, and stores at most result_len elements in result.
+     * result must be allocated with enough memory by a user. To recover keys, supply result in type cedar::result_triple_type
+     * (members are value, length, and id) and supply id and length to the following function, suffix().
+     * The function returns the total number of suffixes (including those not stored in result).
+    */
     template <typename T>
     size_t commonPrefixPredict (const char* key, T* result, size_t result_len)
     { return commonPrefixPredict (key, result, result_len, std::strlen (key)); }
@@ -152,16 +156,20 @@ namespace cedar {
     template <typename T>
     size_t commonPrefixPredict (const char* key, T* result, size_t result_len, size_t len, size_t from = 0) {
       size_t num (0), pos (0), p (0);
-      if (_find (key, from, pos, len) == CEDAR_NO_PATH) return 0;
+      if (_find (key, from, pos, len) == CEDAR_NO_PATH) return 0; // Here pos is incremented
       union { int i; value_type x; } b;
       size_t root = from;
       for (b.i = begin (from, p); b.i != CEDAR_NO_PATH; b.i = next (from, p, root)) {
         if (num < result_len) _set_result (&result[num], b.x, p, from);
-        ++num;
+        ++num; // If num > result_len there is more but could not be stored...
       }
       return num;
     }
-    //
+    /*
+     * Recover a (sub)string key of length = len in a trie that reaches node to.
+     * key must be allocated with enough memory by a user (to store a terminal character, len + 1 bytes are needed).
+     * Users may want to call some node-search function to obtain a valid node address and the (maximum) value of the length of the suffix.
+    */
     void suffix(char *key, size_t len, size_t to) const {
       key[len] = '\0';
       while (len--) {
@@ -170,18 +178,23 @@ namespace cedar {
         to = static_cast <size_t> (from);
       }
     }
-    //
+    // Returns CEDAR_NO_VALUE if the key is present as prefix in the trie (but no value is associated),
+    // while it returns CEDAR_NO_PATH if the key is not present even as prefix.
     value_type traverse (const char* key, size_t& from, size_t& pos) const
     { return traverse (key, from, pos, std::strlen (key)); }
     //
     value_type traverse (const char* key, size_t& from, size_t& pos, size_t len) const {
       union { int i; value_type x; } b;
       b.i = _find (key, from, pos, len);
-      return b.x;
+      return b.x;  // XXX b.x is the default value?
     }
     //
     struct empty_callback { void operator () (const int, const int) {} }; // dummy empty function
-    //
+    /*
+     * Insert key with length = len and value = val. If len is not given, std::strlen() is used to get the length of key.
+     * If key has been already present int the trie, val is added to the current value by using operator+=.
+     * When you want to override the value, omit val and write a value onto the reference to the value returned by the function.
+    */
     value_type& update (const char* key)
     { return update (key, std::strlen (key)); }
     //
@@ -193,13 +206,12 @@ namespace cedar {
     //
     template <typename T>
     value_type& update (const char* key, size_t& from, size_t& pos, size_t len, value_type val, T& cf) {
-      if (! len && ! from)
+      if (! len && ! from) // XXX Simplify Not A And Not B with Not (A Or B)?
         _err (__FILE__, __LINE__, "failed to insert zero-length key\n");
 #ifndef USE_FAST_LOAD
-      if (! _ninfo || ! _block) restore ();
+      if (! _ninfo || ! _block) restore (); // XXX Simplify Not A Or Not B with Not (A And B)?
 #endif
-      for (const uchar* const key_ = reinterpret_cast <const uchar*> (key);
-           pos < len; ++pos) {
+      for (const uchar* const key_ = reinterpret_cast <const uchar*> (key); pos < len; ++pos) {
 #ifdef USE_REDUCED_TRIE
         const value_type val_ = _array[from].value;
         if (val_ >= 0 && val_ != CEDAR_VALUE_LIMIT) // always new; correct this!
@@ -219,6 +231,12 @@ namespace cedar {
       return _array[to].value += val;
     }
     // easy-going erase () without compression
+    /*
+     * Erase key (suffix) of length = len at from (root node in default) in the trie if exists.
+     * If len is not given, std::strlen() is used to get the length of key. erase() returns -1
+     * if the trie does not include the given key. Currently, erase() does not try to refill the
+     * resulting empty elements with the tail elements for compaction.
+    */
     int erase (const char* key) { return erase (key, std::strlen (key)); }
     //
     int erase (const char* key, size_t len, size_t from = 0) {
@@ -247,13 +265,19 @@ namespace cedar {
         from = static_cast <size_t> (_array[from].check);
       } while (! flag);
     }
-    //
+    // Accepts unsorted keys
     int build (size_t num, const char** key, const size_t* len = 0, const value_type* val = 0) {
       for (size_t i = 0; i < num; ++i)
         update (key[i], len ? len[i] : std::strlen (key[i]), val ? val[i] : value_type (i));
       return 0;
     }
-    //
+    /* Recover all the keys from the trie. Use suffix() to obtain actual key strings
+     * (this function works as commonPrefixPredict() from the root).
+     * To get all the results, result must be allocated with enough memory (result_len = num_keys()) by a user.
+     * NOTE: The above two functions are implemented by the following two tree-traversal functions,
+     * begin() and next(), which enumerate the leaf nodes of a given tree by a pre-order walk;
+     * to predict one key by one, use these functions directly.
+    */
     template <typename T>
     void dump (T* result, const size_t result_len) {
       union { int i; value_type x; } b;
@@ -330,6 +354,13 @@ namespace cedar {
     }
     //
 #ifndef USE_FAST_LOAD
+    /*
+     * When you load an immutable double array, extra data needed to do predict(), dump() and update()
+     * are on-demand recovered when the function executed. This will incur some overhead (at the first execution).
+     * To avoid this, a user can explicitly run restore() just after loading the trie.
+     * This command is not defined when you configure --enable-fast-load since the configuration allows you to
+     * directly save/load a mutable double array.
+    */
     void restore () { // restore information to update
       if (! _block) _restore_block ();
       if (! _ninfo) _restore_ninfo ();
@@ -355,13 +386,19 @@ namespace cedar {
       _no_delete = false;
     }
     // return the first child for a tree rooted by a given node
+    /*
+     * Traverse a (sub)tree rooted by a node at from and return a value associated with the first (left-most) leaf node of the subtree.
+     * If the trie has no leaf node, it returns CEDAR_NO_PATH. Upon successful completion, from will point to the leaf node,
+     * while len will be the depth of the node. If you specify some internal node of a trie as from (in other words from != 0),
+     * remember to specify the depth of that node in the trie as len.
+    */
     int begin (size_t& from, size_t& len) {
 #ifndef USE_FAST_LOAD
       if (! _ninfo) _restore_ninfo ();
 #endif
       int   base = _array[from].base ();
       uchar c    = _ninfo[from].child;
-      if (! from && ! (c = _ninfo[base ^ c].sibling)) // bug fix
+      if (! from && ! (c = _ninfo[base ^ c].sibling)) // bug fix // XXX Simplify Not A And Not B with Not (A Or B)?
         return CEDAR_NO_PATH; // no entry
       for (; c; ++len) {
         from = static_cast <size_t> (_array[from].base ()) ^ c;
@@ -373,13 +410,20 @@ namespace cedar {
       return _array[_array[from].base () ^ c].base_;
     }
     // return the next child if any
+    /*
+     * Traverse a (sub)tree rooted by a node at root from a leaf node of depth len at from and return
+     * a value of the next (right) leaf node.
+     * If there is no leaf node at right-hand side of the subtree,
+     * it returns CEDAR_NO_PATH. Upon successful completion, from will point to the next leaf node,
+     * while len will be the depth of the node. This function is assumed to be called after calling begin() or next().
+    */
     int next (size_t& from, size_t& len, const size_t root = 0) {
       uchar c = 0;
 #ifdef USE_REDUCED_TRIE
       if (_array[from].value < 0)
 #endif
         c = _ninfo[_array[from].base () ^ 0].sibling;
-      for (; ! c && from != root; --len) {
+      for (; ! c && from != root; --len) {  // XXX Simplify Not A And Not B with Not (A Or B)?
         c = _ninfo[from].sibling;
         from = static_cast <size_t> (_array[from].check);
       }
@@ -399,7 +443,7 @@ namespace cedar {
     }
     //
     size_t tracking_node[NUM_TRACKING_NODES + 1];
-
+    // ------------------------------------------------ END interfance -------------------------------------------------
   private:
     // currently disabled; implement these if you need
     da (const da&);
@@ -457,8 +501,7 @@ namespace cedar {
     }
     // find key from double array (can return -1 and -2 because CEDAR_NO_VALUE and CEDAR_NO_PATH)
     int _find (const char* key, size_t& from, size_t& pos, const size_t len) const {
-      for (const uchar* const key_ = reinterpret_cast <const uchar*> (key);
-           pos < len; ) { // follow link
+      for (const uchar* const key_ = reinterpret_cast <const uchar*> (key); pos < len; ) { // follow link
 #ifdef USE_REDUCED_TRIE
         if (_array[from].value >= 0) break;
 #endif
