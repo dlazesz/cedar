@@ -39,16 +39,19 @@ namespace cedar {
   class da {
   public:
     enum error_code { CEDAR_NO_VALUE = NO_VALUE, CEDAR_NO_PATH = NO_PATH, CEDAR_VALUE_LIMIT = 2147483647 };
+    //
     typedef value_type result_type;
     struct result_pair_type {
       value_type  value;
       size_t      length;  // prefix length
     };
+    //
     struct result_triple_type { // for predict ()
       value_type  value;
       size_t      length;  // suffix length
       size_t      id;      // node id of value
     };
+    //
     struct node {
       union { int base_; value_type value; }; // negative means prev empty index
       int  check;                             // negative means next empty index
@@ -60,11 +63,13 @@ namespace cedar {
       int base () const { return base_; }
 #endif
     };
+    //
     struct ninfo {  // x1.5 update speed; +.25 % memory (8n -> 10n)
       uchar  sibling;   // right sibling (= 0 if not exist)
       uchar  child;     // first child
       ninfo () : sibling (0), child (0) {}
     };
+    //
     struct block { // a block w/ 256 elements
       int   prev;   // prev block; 3 bytes
       int   next;   // next block; 3 bytes
@@ -74,25 +79,28 @@ namespace cedar {
       int   ehead;  // first empty item
       block () : prev (0), next (0), num (256), reject (257), trial (0), ehead (0) {}
     };
-    
-	da () : tracking_node (), _array (0), _ninfo (0), _block (0), _bheadF (0), _bheadC (0), _bheadO (0), _capacity (0), _size (0), _no_delete (false), _reject () {
+    //
+    da () : tracking_node (), _array (0), _ninfo (0), _block (0), _bheadF (0), _bheadC (0), _bheadO (0), _capacity (0), _size (0), _no_delete (false), _reject () {
       STATIC_ASSERT(sizeof (value_type) <= sizeof (int),
                     value_type_is_not_supported___maintain_a_value_array_by_yourself_and_store_its_index
                     );
       _initialize ();
     }
+    //
     ~da () { clear (false); }
-
+    //
     size_t capacity   () const { return static_cast <size_t> (_capacity); }
     size_t size       () const { return static_cast <size_t> (_size); }
     size_t total_size () const { return sizeof (node) * _size; }
     size_t unit_size  () const { return sizeof (node); }
+    //
     size_t nonzero_size () const {
       size_t i = 0;
       for (int to = 0; to < _size; ++to)
         if (_array[to].check >= 0) ++i;
       return i;
     }
+    //
     size_t num_keys () const {
       size_t i = 0;
       for (int to = 0; to < _size; ++to)
@@ -107,7 +115,7 @@ namespace cedar {
     template <typename T>
     T exactMatchSearch (const char* key) const
     { return exactMatchSearch <T> (key, std::strlen (key)); }
-
+    //
     template <typename T>
     T exactMatchSearch (const char* key, size_t len, size_t from = 0) const {
       union { int i; value_type x; } b;
@@ -118,7 +126,7 @@ namespace cedar {
       _set_result (&result, b.x, len, from);
       return result;
     }
-
+    //
     template <typename T>
     size_t commonPrefixSearch (const char* key, T* result, size_t result_len) const
     { return commonPrefixSearch (key, result, result_len, std::strlen (key)); }
@@ -140,7 +148,7 @@ namespace cedar {
     template <typename T>
     size_t commonPrefixPredict (const char* key, T* result, size_t result_len)
     { return commonPrefixPredict (key, result, result_len, std::strlen (key)); }
-
+    //
     template <typename T>
     size_t commonPrefixPredict (const char* key, T* result, size_t result_len, size_t len, size_t from = 0) {
       size_t num (0), pos (0), p (0);
@@ -153,33 +161,36 @@ namespace cedar {
       }
       return num;
     }
-
+    //
     void suffix(char *key, size_t len, size_t to) const {
       key[len] = '\0';
       while (len--) {
         const int from = _array[to].check;
-        key[len]
-          = static_cast <char> (_array[from].base () ^ static_cast <int> (to));
+        key[len] = static_cast <char> (_array[from].base () ^ static_cast <int> (to));
         to = static_cast <size_t> (from);
       }
     }
+    //
     value_type traverse (const char* key, size_t& from, size_t& pos) const
     { return traverse (key, from, pos, std::strlen (key)); }
-
+    //
     value_type traverse (const char* key, size_t& from, size_t& pos, size_t len) const {
       union { int i; value_type x; } b;
       b.i = _find (key, from, pos, len);
       return b.x;
     }
-
+    //
     struct empty_callback { void operator () (const int, const int) {} }; // dummy empty function
+    //
     value_type& update (const char* key)
     { return update (key, std::strlen (key)); }
+    //
     value_type& update (const char* key, size_t len, value_type val = value_type (0))
     { size_t from (0), pos (0); return update (key, from, pos, len, val); }
+    //
     value_type& update (const char* key, size_t& from, size_t& pos, size_t len, value_type val = value_type (0))
     { empty_callback cf; return update (key, from, pos, len, val, cf); }
-
+    //
     template <typename T>
     value_type& update (const char* key, size_t& from, size_t& pos, size_t len, value_type val, T& cf) {
       if (! len && ! from)
@@ -192,7 +203,10 @@ namespace cedar {
 #ifdef USE_REDUCED_TRIE
         const value_type val_ = _array[from].value;
         if (val_ >= 0 && val_ != CEDAR_VALUE_LIMIT) // always new; correct this!
-          { const int to = _follow (from, 0, cf); _array[to].value = val_; }
+        {
+          const int to = _follow (from, 0, cf);
+          _array[to].value = val_;
+        }
 #endif
         from = static_cast <size_t> (_follow (from, key_[pos], cf));
       }
@@ -206,6 +220,7 @@ namespace cedar {
     }
     // easy-going erase () without compression
     int erase (const char* key) { return erase (key, std::strlen (key)); }
+    //
     int erase (const char* key, size_t len, size_t from = 0) {
       size_t pos = 0;
       const int i = _find (key, from, pos, len);
@@ -213,6 +228,7 @@ namespace cedar {
       erase (from);
       return 0;
     }
+    //
     void erase (size_t from) {
       // _test ();
 #ifdef USE_REDUCED_TRIE
@@ -231,11 +247,13 @@ namespace cedar {
         from = static_cast <size_t> (_array[from].check);
       } while (! flag);
     }
+    //
     int build (size_t num, const char** key, const size_t* len = 0, const value_type* val = 0) {
       for (size_t i = 0; i < num; ++i)
         update (key[i], len ? len[i] : std::strlen (key[i]), val ? val[i] : value_type (i));
       return 0;
     }
+    //
     template <typename T>
     void dump (T* result, const size_t result_len) {
       union { int i; value_type x; } b;
@@ -246,6 +264,7 @@ namespace cedar {
         else
           _err (__FILE__, __LINE__, "dump() needs array of length = num_keys()\n");
     }
+    //
     int save (const char* fn, const char* mode = "wb") const {
       // _test ();
       FILE* fp = std::fopen (fn, mode);
@@ -253,8 +272,7 @@ namespace cedar {
       std::fwrite (_array, sizeof (node), static_cast <size_t> (_size), fp);
       std::fclose (fp);
 #ifdef USE_FAST_LOAD
-      const char* const info
-        = std::strcat (std::strcpy (new char[std::strlen (fn) + 5], fn), ".sbl");
+      const char* const info = std::strcat (std::strcpy (new char[std::strlen (fn) + 5], fn), ".sbl");
       fp = std::fopen (info, mode);
       delete [] info; // resolve memory leak
       if (! fp) return -1;
@@ -267,9 +285,8 @@ namespace cedar {
 #endif
       return 0;
     }
-
-    int open (const char* fn, const char* mode = "rb",
-              const size_t offset = 0, size_t size_ = 0) {
+    //
+    int open (const char* fn, const char* mode = "rb", const size_t offset = 0, size_t size_ = 0) {
       FILE* fp = std::fopen (fn, mode);
       if (! fp) return -1;
       // get size
@@ -296,8 +313,7 @@ namespace cedar {
       std::fclose (fp);
       _size = static_cast <int> (size_);
 #ifdef USE_FAST_LOAD
-      const char* const info
-        = std::strcat (std::strcpy (new char[std::strlen (fn) + 5], fn), ".sbl");
+      const char* const info = std::strcat (std::strcpy (new char[std::strlen (fn) + 5], fn), ".sbl");
       fp = std::fopen (info, mode);
       delete [] info; // resolve memory leak
       if (! fp) return -1;
@@ -312,6 +328,7 @@ namespace cedar {
 #endif
       return 0;
     }
+    //
 #ifndef USE_FAST_LOAD
     void restore () { // restore information to update
       if (! _block) _restore_block ();
@@ -319,13 +336,16 @@ namespace cedar {
       _capacity = _size;
     }
 #endif
+    //
     void set_array (void* p, size_t size_ = 0) { // ad-hoc
       clear (false);
       _array = static_cast <node*> (p);
       _size  = static_cast <int> (size_);
       _no_delete = true;
     }
+    //
     const void* array () const { return _array; }
+    //
     void clear (const bool reuse = true) {
       if (_array && ! _no_delete) std::free (_array); _array = 0;
       if (_ninfo) std::free (_ninfo); _ninfo = 0;
@@ -377,6 +397,7 @@ namespace cedar {
           test (static_cast <size_t> (base ^ c));
       } while ((c = _ninfo[base ^ c].sibling));
     }
+    //
     size_t tracking_node[NUM_TRACKING_NODES + 1];
 
   private:
@@ -405,6 +426,7 @@ namespace cedar {
       static const T T0 = T ();
       for (T* q (p + size_p), * const r (p + size_n); q != r; ++q) *q = T0;
     }
+    //
     void _initialize () { // initilize the first special block
       _realloc_array (_array, 256, 256);
       _realloc_array (_ninfo, 256);
@@ -414,12 +436,12 @@ namespace cedar {
 #else
       _array[0] = node (0, -1);
 #endif
-      for (int i = 1; i < 256; ++i)
+      for (short i = 1; i < 256; ++i)
         _array[i] = node (i == 1 ? -255 : - (i - 1), i == 255 ? -1 : - (i + 1));
       _block[0].ehead = 1; // bug fix for erase
       _capacity = _size = 256;
       for (size_t i = 0 ; i <= NUM_TRACKING_NODES; ++i) tracking_node[i] = 0;
-      for (short  i = 0; i <= 256; ++i) _reject[i] = i + 1;
+      for (short i = 0; i <= 256; ++i) _reject[i] = i + 1;
     }
     // follow/create edge
     template <typename T>
@@ -433,7 +455,7 @@ namespace cedar {
         to = _resolve (from, base, label, cf);
       return to;
     }
-    // find key from double array
+    // find key from double array (can return -1 and -2 because CEDAR_NO_VALUE and CEDAR_NO_PATH)
     int _find (const char* key, size_t& from, size_t& pos, const size_t len) const {
       for (const uchar* const key_ = reinterpret_cast <const uchar*> (key);
            pos < len; ) { // follow link
@@ -453,6 +475,7 @@ namespace cedar {
       if (n.check != static_cast <int> (from)) return CEDAR_NO_VALUE;
       return n.base_;
     }
+    //
 #ifndef USE_FAST_LOAD
     void _restore_ninfo () {
       _realloc_array (_ninfo, _size);
@@ -465,6 +488,7 @@ namespace cedar {
                          ! from || _ninfo[from].child || _array[base ^ 0].check == from);
       }
     }
+    //
     void _restore_block () {
       _realloc_array (_block, _size >> 8);
       _bheadF = _bheadC = _bheadO = 0;
@@ -478,12 +502,16 @@ namespace cedar {
       }
     }
 #endif
+    //
     void _set_result (result_type* x, value_type r, size_t = 0, size_t = 0) const
     { *x = r; }
+    //
     void _set_result (result_pair_type* x, value_type r, size_t l, size_t = 0) const
     { x->value = r; x->length = l; }
+    //
     void _set_result (result_triple_type* x, value_type r, size_t l, size_t from) const
     { x->value = r; x->length = l; x->id = from; }
+    //
     void _pop_block (const int bi, int& head_in, const bool last) {
       if (last) { // last one poped; Closed or Open
         head_in = 0;
@@ -494,6 +522,7 @@ namespace cedar {
         if (bi == head_in) head_in = b.next;
       }
     }
+    //
     void _push_block (const int bi, int& head_out, const bool empty) {
       block& b = _block[bi];
       if (empty) { // the destination is empty
@@ -505,6 +534,7 @@ namespace cedar {
         head_out = tail_out = _block[tail_out].next = bi;
       }
     }
+    //
     int _add_block () {
       if (_size == _capacity) { // allocate memory if needed
 #ifdef USE_EXACT_FIT
@@ -610,6 +640,7 @@ namespace cedar {
       if (_bheadO) return _block[_bheadO].ehead;
       return _add_block () << 8;
     }
+    //
     int _find_place (const uchar* const first, const uchar* const last) {
       if (int bi = _bheadO) {
         const int   bz = _block[_bheadO].prev;
