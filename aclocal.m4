@@ -1,6 +1,6 @@
-# generated automatically by aclocal 1.14.1 -*- Autoconf -*-
+# generated automatically by aclocal 1.15 -*- Autoconf -*-
 
-# Copyright (C) 1996-2013 Free Software Foundation, Inc.
+# Copyright (C) 1996-2014 Free Software Foundation, Inc.
 
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -20,7 +20,82 @@ You have another version of autoconf.  It may work, but is not guaranteed to.
 If you have problems, you may need to regenerate the build system entirely.
 To do so, use the procedure documented by the package, typically 'autoreconf'.])])
 
-# Copyright (C) 2002-2013 Free Software Foundation, Inc.
+# ===========================================================================
+#   http://www.gnu.org/software/autoconf-archive/ax_check_compile_flag.html
+# ===========================================================================
+#
+# SYNOPSIS
+#
+#   AX_CHECK_COMPILE_FLAG(FLAG, [ACTION-SUCCESS], [ACTION-FAILURE], [EXTRA-FLAGS], [INPUT])
+#
+# DESCRIPTION
+#
+#   Check whether the given FLAG works with the current language's compiler
+#   or gives an error.  (Warnings, however, are ignored)
+#
+#   ACTION-SUCCESS/ACTION-FAILURE are shell commands to execute on
+#   success/failure.
+#
+#   If EXTRA-FLAGS is defined, it is added to the current language's default
+#   flags (e.g. CFLAGS) when the check is done.  The check is thus made with
+#   the flags: "CFLAGS EXTRA-FLAGS FLAG".  This can for example be used to
+#   force the compiler to issue an error when a bad flag is given.
+#
+#   INPUT gives an alternative input source to AC_COMPILE_IFELSE.
+#
+#   NOTE: Implementation based on AX_CFLAGS_GCC_OPTION. Please keep this
+#   macro in sync with AX_CHECK_{PREPROC,LINK}_FLAG.
+#
+# LICENSE
+#
+#   Copyright (c) 2008 Guido U. Draheim <guidod@gmx.de>
+#   Copyright (c) 2011 Maarten Bosmans <mkbosmans@gmail.com>
+#
+#   This program is free software: you can redistribute it and/or modify it
+#   under the terms of the GNU General Public License as published by the
+#   Free Software Foundation, either version 3 of the License, or (at your
+#   option) any later version.
+#
+#   This program is distributed in the hope that it will be useful, but
+#   WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+#   Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License along
+#   with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+#   As a special exception, the respective Autoconf Macro's copyright owner
+#   gives unlimited permission to copy, distribute and modify the configure
+#   scripts that are the output of Autoconf when processing the Macro. You
+#   need not follow the terms of the GNU General Public License when using
+#   or distributing such scripts, even though portions of the text of the
+#   Macro appear in them. The GNU General Public License (GPL) does govern
+#   all other use of the material that constitutes the Autoconf Macro.
+#
+#   This special exception to the GPL applies to versions of the Autoconf
+#   Macro released by the Autoconf Archive. When you make and distribute a
+#   modified version of the Autoconf Macro, you may extend this special
+#   exception to the GPL to apply to your modified version as well.
+
+#serial 4
+
+AC_DEFUN([AX_CHECK_COMPILE_FLAG],
+[AC_PREREQ(2.64)dnl for _AC_LANG_PREFIX and AS_VAR_IF
+AS_VAR_PUSHDEF([CACHEVAR],[ax_cv_check_[]_AC_LANG_ABBREV[]flags_$4_$1])dnl
+AC_CACHE_CHECK([whether _AC_LANG compiler accepts $1], CACHEVAR, [
+  ax_check_save_flags=$[]_AC_LANG_PREFIX[]FLAGS
+  _AC_LANG_PREFIX[]FLAGS="$[]_AC_LANG_PREFIX[]FLAGS $4 $1"
+  AC_COMPILE_IFELSE([m4_default([$5],[AC_LANG_PROGRAM()])],
+    [AS_VAR_SET(CACHEVAR,[yes])],
+    [AS_VAR_SET(CACHEVAR,[no])])
+  _AC_LANG_PREFIX[]FLAGS=$ax_check_save_flags])
+AS_VAR_IF(CACHEVAR,yes,
+  [m4_default([$2], :)],
+  [m4_default([$3], :)])
+AS_VAR_POPDEF([CACHEVAR])dnl
+])dnl AX_CHECK_COMPILE_FLAGS
+
+# Copyright (C) 2002-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -58,7 +133,7 @@ _AM_AUTOCONF_VERSION(m4_defn([AC_AUTOCONF_VERSION]))])
 
 # AM_AUX_DIR_EXPAND                                         -*- Autoconf -*-
 
-# Copyright (C) 2001-2013 Free Software Foundation, Inc.
+# Copyright (C) 2001-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -103,15 +178,14 @@ _AM_AUTOCONF_VERSION(m4_defn([AC_AUTOCONF_VERSION]))])
 # configured tree to be moved without reconfiguration.
 
 AC_DEFUN([AM_AUX_DIR_EXPAND],
-[dnl Rely on autoconf to set up CDPATH properly.
-AC_PREREQ([2.50])dnl
-# expand $ac_aux_dir to an absolute path
-am_aux_dir=`cd $ac_aux_dir && pwd`
+[AC_REQUIRE([AC_CONFIG_AUX_DIR_DEFAULT])dnl
+# Expand $ac_aux_dir to an absolute path.
+am_aux_dir=`cd "$ac_aux_dir" && pwd`
 ])
 
 # AM_CONDITIONAL                                            -*- Autoconf -*-
 
-# Copyright (C) 1997-2013 Free Software Foundation, Inc.
+# Copyright (C) 1997-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -142,7 +216,7 @@ AC_CONFIG_COMMANDS_PRE(
 Usually this means the macro was only invoked conditionally.]])
 fi])])
 
-# Copyright (C) 1999-2013 Free Software Foundation, Inc.
+# Copyright (C) 1999-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -333,7 +407,7 @@ _AM_SUBST_NOTMAKE([am__nodep])dnl
 
 # Generate code to set up dependency tracking.              -*- Autoconf -*-
 
-# Copyright (C) 1999-2013 Free Software Foundation, Inc.
+# Copyright (C) 1999-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -409,7 +483,7 @@ AC_DEFUN([AM_OUTPUT_DEPENDENCY_COMMANDS],
 
 # Do all the work for Automake.                             -*- Autoconf -*-
 
-# Copyright (C) 1996-2013 Free Software Foundation, Inc.
+# Copyright (C) 1996-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -499,8 +573,8 @@ AC_REQUIRE([AC_PROG_MKDIR_P])dnl
 # <http://lists.gnu.org/archive/html/automake/2012-07/msg00001.html>
 # <http://lists.gnu.org/archive/html/automake/2012-07/msg00014.html>
 AC_SUBST([mkdir_p], ['$(MKDIR_P)'])
-# We need awk for the "check" target.  The system "awk" is bad on
-# some platforms.
+# We need awk for the "check" target (and possibly the TAP driver).  The
+# system "awk" is bad on some platforms.
 AC_REQUIRE([AC_PROG_AWK])dnl
 AC_REQUIRE([AC_PROG_MAKE_SET])dnl
 AC_REQUIRE([AM_SET_LEADING_DOT])dnl
@@ -573,7 +647,11 @@ to "yes", and re-run configure.
 END
     AC_MSG_ERROR([Your 'rm' program is bad, sorry.])
   fi
-fi])
+fi
+dnl The trailing newline in this macro's definition is deliberate, for
+dnl backward compatibility and to allow trailing 'dnl'-style comments
+dnl after the AM_INIT_AUTOMAKE invocation. See automake bug#16841.
+])
 
 dnl Hook into '_AC_COMPILER_EXEEXT' early to learn its expansion.  Do not
 dnl add the conditional right here, as _AC_COMPILER_EXEEXT may be further
@@ -602,7 +680,7 @@ for _am_header in $config_headers :; do
 done
 echo "timestamp for $_am_arg" >`AS_DIRNAME(["$_am_arg"])`/stamp-h[]$_am_stamp_count])
 
-# Copyright (C) 2001-2013 Free Software Foundation, Inc.
+# Copyright (C) 2001-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -613,7 +691,7 @@ echo "timestamp for $_am_arg" >`AS_DIRNAME(["$_am_arg"])`/stamp-h[]$_am_stamp_co
 # Define $install_sh.
 AC_DEFUN([AM_PROG_INSTALL_SH],
 [AC_REQUIRE([AM_AUX_DIR_EXPAND])dnl
-if test x"${install_sh}" != xset; then
+if test x"${install_sh+set}" != xset; then
   case $am_aux_dir in
   *\ * | *\	*)
     install_sh="\${SHELL} '$am_aux_dir/install-sh'" ;;
@@ -623,7 +701,7 @@ if test x"${install_sh}" != xset; then
 fi
 AC_SUBST([install_sh])])
 
-# Copyright (C) 2003-2013 Free Software Foundation, Inc.
+# Copyright (C) 2003-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -644,7 +722,7 @@ AC_SUBST([am__leading_dot])])
 
 # Check to see how 'make' treats includes.	            -*- Autoconf -*-
 
-# Copyright (C) 2001-2013 Free Software Foundation, Inc.
+# Copyright (C) 2001-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -694,7 +772,7 @@ rm -f confinc confmf
 
 # Fake the existence of programs that GNU maintainers use.  -*- Autoconf -*-
 
-# Copyright (C) 1997-2013 Free Software Foundation, Inc.
+# Copyright (C) 1997-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -733,7 +811,7 @@ fi
 
 # Helper functions for option handling.                     -*- Autoconf -*-
 
-# Copyright (C) 2001-2013 Free Software Foundation, Inc.
+# Copyright (C) 2001-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -762,7 +840,7 @@ AC_DEFUN([_AM_SET_OPTIONS],
 AC_DEFUN([_AM_IF_OPTION],
 [m4_ifset(_AM_MANGLE_OPTION([$1]), [$2], [$3])])
 
-# Copyright (C) 1999-2013 Free Software Foundation, Inc.
+# Copyright (C) 1999-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -809,7 +887,7 @@ AC_LANG_POP([C])])
 # For backward compatibility.
 AC_DEFUN_ONCE([AM_PROG_CC_C_O], [AC_REQUIRE([AC_PROG_CC])])
 
-# Copyright (C) 2001-2013 Free Software Foundation, Inc.
+# Copyright (C) 2001-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -828,7 +906,7 @@ AC_DEFUN([AM_RUN_LOG],
 
 # Check to make sure that the build environment is sane.    -*- Autoconf -*-
 
-# Copyright (C) 1996-2013 Free Software Foundation, Inc.
+# Copyright (C) 1996-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -909,7 +987,7 @@ AC_CONFIG_COMMANDS_PRE(
 rm -f conftest.file
 ])
 
-# Copyright (C) 2009-2013 Free Software Foundation, Inc.
+# Copyright (C) 2009-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -969,7 +1047,7 @@ AC_SUBST([AM_BACKSLASH])dnl
 _AM_SUBST_NOTMAKE([AM_BACKSLASH])dnl
 ])
 
-# Copyright (C) 2001-2013 Free Software Foundation, Inc.
+# Copyright (C) 2001-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -997,7 +1075,7 @@ fi
 INSTALL_STRIP_PROGRAM="\$(install_sh) -c -s"
 AC_SUBST([INSTALL_STRIP_PROGRAM])])
 
-# Copyright (C) 2006-2013 Free Software Foundation, Inc.
+# Copyright (C) 2006-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -1016,7 +1094,7 @@ AC_DEFUN([AM_SUBST_NOTMAKE], [_AM_SUBST_NOTMAKE($@)])
 
 # Check how to create a tarball.                            -*- Autoconf -*-
 
-# Copyright (C) 2004-2013 Free Software Foundation, Inc.
+# Copyright (C) 2004-2014 Free Software Foundation, Inc.
 #
 # This file is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,

@@ -10,6 +10,7 @@ AC_LANG([C++])
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC
+AX_CHECK_COMPILE_FLAG([-std=c++11], [CXXFLAGS="$CXXFLAGS -std=c++11"])
 
 # Checks for libraries.
 
