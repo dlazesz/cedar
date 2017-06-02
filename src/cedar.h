@@ -25,7 +25,7 @@ namespace cedar {
   typedef unsigned char  uchar;
   template <typename T> struct NaN { enum { N1 = -1, N2 = -2 }; };
   template <> struct NaN <float> { enum { N1 = 0x7f800001, N2 = 0x7f800002 }; };
-  static const int MAX_ALLOC_SIZE = 1 << 16; // must be divisible by 256
+  static const int MAX_ALLOC_SIZE = 1 << 16; // must be divisible by 256 (1 << 16 == 65536 == 256*256)
 
   // dynamic double array
   template <typename value_type,
@@ -49,7 +49,19 @@ namespace cedar {
       size_t      length;  // suffix length
       size_t      id;      // node id of value
     };
-    //
+    /* varialbe base_ stores the offset address of its child, so a child node takes the address c = base_[p] ^ l
+     * when the node is traveresed from p by label l.
+     * For each node c, variable check stores the address of its parent node, p, and is used to confirm the validity of
+     * the traversal by checking whether check[c] = p is held after the node is reached by c = base_[p] ^ l.
+     *
+     * Note1: When a key is not a prefix to other keys and therefore the value node has no sibling node,
+     *        so a value can be directly embedded on the base_ of the node reached after reading the entire key
+     *        instead of the offset address of the child (value) node.
+     *
+     * Note2: XOR (^) operation guarantees that all the child nodes are located within a certain block i
+     *        (assuming 1 byte (0-255) for each label, l, child nodes of a node, p, are all located in addresses
+     *        (256i <= c = BASE[p] XOR l< 256(i+1))
+    */
     struct node {
       union { int base_; value_type value; }; // negative means prev empty index
       int  check;                             // negative means next empty index
@@ -61,13 +73,29 @@ namespace cedar {
       int base () const { return base_; }
 #endif
     };
-    //
+    /*
+     * ninfo == nlink in the paper
+     * For each node, ninfo stores the label needed to reach its first child
+     * and the label needed to reach the sibling nodes from its parent for realocation.
+    */
     struct ninfo {  // x1.5 update speed; +.25 % memory (8n -> 10n)
       uchar  sibling;   // right sibling (= 0 if not exist)
       uchar  child;     // first child
       ninfo () : sibling (0), child (0) {}
     };
-    //
+    /*
+     * Variable _block stores information on empty addresses within each 256 conescutive addresses called block in base_ and check
+     * Each block is classified into three types, called `full', `closed', and `open'.
+     * Full blocks have no empty addresses and are exlcuded from the target of reloacation.
+     * Closed blocks have only one empty address or have failed to be relocated more times than a pre-specified threshold.
+     * Open blocks are other blocks, which have more than one empty address.
+     *
+     * A branching with one child node is relocated to a closed block,
+     * while a branching with multiple child nodes is relocated to an open block.
+     * To support deletion we register each block empty addresses resulting from deletion.
+     * A new key will be stored immediately after the deletion.
+     * The trie is not packed after deletion.
+    */
     struct block { // a block w/ 256 elements
       int   prev;   // prev block; 3 bytes
       int   next;   // next block; 3 bytes
@@ -446,6 +474,7 @@ namespace cedar {
     // currently disabled; implement these if you need
     da (const da&);
     da& operator= (const da&);
+    //
     node*   _array;
     ninfo*  _ninfo;
     block*  _block;
@@ -472,14 +501,14 @@ namespace cedar {
     void _initialize () { // initilize the first special block
       _realloc_array (_array, 256, 256);
       _realloc_array (_ninfo, 256);
-      _realloc_array (_block, 1);
+      _realloc_array (_block, 1);  // XXX Is this ok? Shouldn't this be initialized?
 #ifdef USE_REDUCED_TRIE
       _array[0] = node (-1, -1);
 #else
       _array[0] = node (0, -1);
 #endif
-      for (short i = 1; i < 256; ++i)
-        _array[i] = node (i == 1 ? -255 : - (i - 1), i == 255 ? -1 : - (i + 1));
+      // node (-255, -2), node (-1, -3), node (-2, -4), ..., node (-252, -254), node (-253, -255), node (255, -1)
+      for (short i = 1; i < 256; ++i) _array[i] = node (i == 1 ? -255 : - (i - 1), i == 255 ? -1 : - (i + 1));
       _block[0].ehead = 1; // bug fix for erase
       _capacity = _size = 256;
       for (size_t i = 0 ; i <= NUM_TRACKING_NODES; ++i) tracking_node[i] = 0;
@@ -536,8 +565,8 @@ namespace cedar {
       for (int bi (0), e (0); e < _size; ++bi) { // register blocks to full
         block& b = _block[bi];
         b.num = 0;
-        for (; e < (bi << 8) + 256; ++e)
-          if (_array[e].check < 0 && ++b.num == 1) b.ehead = e;
+        // e from the begining to the end of the actual block
+        for (; e < (bi << 8) + 256; ++e) if (_array[e].check < 0 && ++b.num == 1) b.ehead = e;
         int& head_out = b.num == 1 ? _bheadC : (b.num == 0 ? _bheadF : _bheadO);
         _push_block (bi, head_out, ! head_out && b.num);
       }
@@ -581,11 +610,11 @@ namespace cedar {
 #ifdef USE_EXACT_FIT
         _capacity += _size >= MAX_ALLOC_SIZE ? MAX_ALLOC_SIZE : _size;
 #else
-        _capacity += _capacity;
+        _capacity += _capacity; // Double capacity
 #endif
         _realloc_array (_array, _capacity, _capacity);
         _realloc_array (_ninfo, _capacity, _size);
-        _realloc_array (_block, _capacity >> 8, _size >> 8);
+        _realloc_array (_block, _capacity >> 8, _size >> 8); // _capacity / 256, _size / 256 to match blocksize == 256
       }
       _block[_size >> 8].ehead = _size;
       _array[_size] = node (- (_size + 255),  - (_size + 1));
@@ -596,7 +625,7 @@ namespace cedar {
       _size += 256;
       return (_size >> 8) - 1;
     }
-    // transfer block from one start w/ head_in to one start w/ head_out
+    // transfer block from one start w/ head_in to one start w/ head_out (Open <-> Closed <-> Full)
     void _transfer_block (const int bi, int& head_in, int& head_out) {
       _pop_block  (bi, head_in, bi == _block[bi].next);
       _push_block (bi, head_out, ! head_out && _block[bi].num);
@@ -613,15 +642,14 @@ namespace cedar {
         _array[-n.base_].check = n.check;
         _array[-n.check].base_ = n.base_;
         if (e == b.ehead) b.ehead = -n.check; // set ehead
-        if (bi && b.num == 1 && b.trial != MAX_TRIAL) // Open to Closed
-          _transfer_block (bi, _bheadO, _bheadC);
+        if (bi && b.num == 1 && b.trial != MAX_TRIAL) _transfer_block (bi, _bheadO, _bheadC); // Open to Closed
       }
       // initialize the released node
 #ifdef USE_REDUCED_TRIE
       n.value = CEDAR_VALUE_LIMIT; n.check = from;
       if (base < 0) _array[from].base_ = - (e ^ label) - 1;
 #else
-      if (label) n.base_ = -1; else n.value = value_type (0); n.check = from;
+      if (label) n.base_ = -1; else n.value = value_type (0); n.check = from;  // XXX is this ok? Else 2 statement in one block?
       if (base < 0) _array[from].base_ = e ^ label;
 #endif
       return e;
@@ -639,8 +667,7 @@ namespace cedar {
         const int next = -_array[prev].check;
         _array[e] = node (-prev, -next);
         _array[prev].check = _array[next].base_ = -e;
-        if (b.num == 2 || b.trial == MAX_TRIAL) // Closed to Open
-          if (bi) _transfer_block (bi, _bheadC, _bheadO);
+        if (b.num == 2 || b.trial == MAX_TRIAL)  if (bi) _transfer_block (bi, _bheadC, _bheadO); // Closed to Open  // XXX Simplify (b.num == 2 || b.trial == MAX_TRIAL) && bi?
         b.trial = 0;
       }
       if (b.reject < _reject[b.num]) b.reject = _reject[b.num];
@@ -661,7 +688,7 @@ namespace cedar {
     }
     // check whether to replace branching w/ the newly added node
     bool _consult (const int base_n, const int base_p, uchar c_n, uchar c_p) const {
-      do c_n = _ninfo[base_n ^ c_n].sibling, c_p = _ninfo[base_p ^ c_p].sibling;
+      do c_n = _ninfo[base_n ^ c_n].sibling, c_p = _ninfo[base_p ^ c_p].sibling; // XXX is this ok? , instead of ; ?
       while (c_n && c_p);
       return c_p;
     }
@@ -683,7 +710,7 @@ namespace cedar {
     }
     //
     int _find_place (const uchar* const first, const uchar* const last) {
-      if (int bi = _bheadO) {
+      if (int bi = _bheadO) { // if bi != 0: this int's scope is the body of the if.
         const int   bz = _block[_bheadO].prev;
         const short nc = static_cast <short> (last - first + 1);
         while (1) { // set candidate block
@@ -697,8 +724,8 @@ namespace cedar {
             }
           b.reject = nc;
           if (b.reject < _reject[b.num]) _reject[b.num] = b.reject;
-          const int bi_ = b.next;
-          if (++b.trial == MAX_TRIAL) _transfer_block (bi, _bheadO, _bheadC);
+          const int bi_ = b.next; // This const's lifetime is the end of the scope in each loop
+          if (++b.trial == MAX_TRIAL) _transfer_block (bi, _bheadO, _bheadC); // Open to Closed
           if (bi == bz) break;
           bi = bi_;
         };
