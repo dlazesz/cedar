@@ -38,6 +38,7 @@ namespace cedar {
       typedef int baseindex;
       typedef int checkindex;
       typedef int size_type;
+      typedef int blockindex;
       typedef union { baseindex i; value_type x; } nodeelement;
   public:
     enum error_code { CEDAR_NO_VALUE = NO_VALUE, CEDAR_NO_PATH = NO_PATH, CEDAR_VALUE_LIMIT = 2147483647 };  // 2147483647 == 2^31 − 1
@@ -102,12 +103,12 @@ namespace cedar {
      * The trie is not packed after deletion.
     */
     struct block { // a block w/ 256 elements
-      int   prev;   // prev block; 3 bytes
-      int   next;   // next block; 3 bytes
-      short num;    // # empty elements; 0 - 256
-      short reject; // minimum # branching failed to locate; soft limit
-      int   trial;  // # trial
-      int   ehead;  // first empty item
+      blockindex prev;   // prev block; 3 bytes
+      blockindex next;   // next block; 3 bytes
+      short      num;    // # empty elements; 0 - 256
+      short      reject; // minimum # branching failed to locate; soft limit
+      int        trial;  // # trial
+      size_type  ehead;  // first empty item  // XXX In the current block?
       block () : prev (0), next (0), num (256), reject (257), trial (0), ehead (0) {}
     };
     //
@@ -480,16 +481,16 @@ namespace cedar {
     da (const da&);
     da& operator= (const da&);
     //
-    node*     _array;
-    ninfo*    _ninfo;
-    block*    _block;
-    int       _bheadF;  // first block of Full;   0
-    int       _bheadC;  // first block of Closed; 0 if no Closed
-    int       _bheadO;  // first block of Open;   0 if no Open
-    size_type _capacity;
-    size_type _size;
-    bool      _no_delete;  // Bool not int
-    short     _reject[257];
+    node*      _array;
+    ninfo*     _ninfo;
+    block*     _block;
+    blockindex _bheadF;  // first block of Full;   0
+    blockindex _bheadC;  // first block of Closed; 0 if no Closed
+    blockindex _bheadO;  // first block of Open;   0 if no Open
+    size_type  _capacity;
+    size_type  _size;
+    bool       _no_delete;  // Bool not int
+    short      _reject[257];
     //
     static void _err (const char* fn, const size_t ln, const char* msg){
       std::fprintf (stderr, "cedar: %s [%lu]: %s", fn, ln, msg); std::exit (1); }
@@ -522,43 +523,43 @@ namespace cedar {
     }
     // follow/create edge
     template <typename T>
-    int _follow (size_t& from, const uchar& label, T& cf) {
-      int to = 0;
-      const int base = _array[from].base ();
+    baseindex _follow (size_t& from, const uchar& label, T& cf) {
+      baseindex to = 0;
+      const baseindex base = _array[from].base ();
       if (base < 0 || _array[to = base ^ label].check < 0) {
-        to = _pop_enode (base, label, static_cast <int> (from));
+        to = _pop_enode (base, label, static_cast <checkindex> (from));
         _push_sibling (from, to ^ label, label, base >= 0);
-      } else if (_array[to].check != static_cast <int> (from))
+      } else if (_array[to].check != static_cast <checkindex> (from))
         to = _resolve (from, base, label, cf);
       return to;
     }
     // find key from double array (can return -1 and -2 because CEDAR_NO_VALUE and CEDAR_NO_PATH)
-    int _find (const char* key, size_t& from, size_t& pos, const size_t len) const {
+    baseindex _find (const char* key, size_t& from, size_t& pos, const size_t len) const {
       for (const uchar* const key_ = reinterpret_cast <const uchar*> (key); pos < len; ) { // follow link
 #ifdef USE_REDUCED_TRIE
         if (_array[from].value >= 0) break;
 #endif
         size_t to = static_cast <size_t> (_array[from].base ()); to ^= key_[pos];
-        if (_array[to].check != static_cast <int> (from)) return CEDAR_NO_PATH;
+        if (_array[to].check != static_cast <checkindex> (from)) return CEDAR_NO_PATH;
         ++pos;
         from = to;
       }
 #ifdef USE_REDUCED_TRIE
       if (_array[from].value >= 0) // get value from leaf
-        return pos == len ? _array[from].value : CEDAR_NO_PATH; // only allow integer key
+        return pos == len ? _array[from].value : CEDAR_NO_PATH; // only allow integer key  // XXX Here some cast needed on Non-integer value...
 #endif
       const node n = _array[_array[from].base () ^ 0];
-      if (n.check != static_cast <int> (from)) return CEDAR_NO_VALUE;
+      if (n.check != static_cast <checkindex> (from)) return CEDAR_NO_VALUE;
       return n.base ();
     }
     //
 #ifndef USE_FAST_LOAD
     void _restore_ninfo () {
       _realloc_array (_ninfo, _size);
-      for (int to = 0; to < _size; ++to) {
-        const int from = _array[to].check;
+      for (size_type to = 0; to < _size; ++to) {
+        const checkindex from = _array[to].check;
         if (from < 0) continue; // skip empty node
-        const int base = _array[from].base ();
+        const baseindex base = _array[from].base ();
         if (const uchar label = static_cast <uchar> (base ^ to)) // skip leaf
           _push_sibling (static_cast <size_t> (from), base, label,
                          ! from || _ninfo[from].child || _array[base ^ 0].check == from);
@@ -568,12 +569,14 @@ namespace cedar {
     void _restore_block () {
       _realloc_array (_block, _size >> 8);
       _bheadF = _bheadC = _bheadO = 0;
-      for (int bi (0), e (0); e < _size; ++bi) { // register blocks to full
+      blockindex bi (0);
+      size_type e (0);
+      for (; e < _size; ++bi) { // register blocks to full
         block& b = _block[bi];
         b.num = 0;
         // e from the begining to the end of the actual block
         for (; e < (bi << 8) + 256; ++e) if (_array[e].check < 0 && ++b.num == 1) b.ehead = e;
-        int& head_out = b.num == 1 ? _bheadC : (b.num == 0 ? _bheadF : _bheadO);
+        blockindex& head_out = b.num == 1 ? _bheadC : (b.num == 0 ? _bheadF : _bheadO);
         _push_block (bi, head_out, ! head_out && b.num);
       }
     }
@@ -588,7 +591,7 @@ namespace cedar {
     void _set_result (result_triple_type* x, value_type r, size_t l, size_t from) const
     { x->value = r; x->length = l; x->id = from; }
     //
-    void _pop_block (const int bi, int& head_in, const bool last) {
+    void _pop_block (const blockindex bi, blockindex& head_in, const bool last) {
       if (last) { // last one poped; Closed or Open
         head_in = 0;
       } else {
@@ -599,19 +602,19 @@ namespace cedar {
       }
     }
     //
-    void _push_block (const int bi, int& head_out, const bool empty) {
+    void _push_block (const blockindex bi, blockindex& head_out, const bool empty) {
       block& b = _block[bi];
       if (empty) { // the destination is empty
         head_out = b.prev = b.next = bi;
       } else { // use most recently pushed
-        int& tail_out = _block[head_out].prev;
+        blockindex& tail_out = _block[head_out].prev;
         b.prev = tail_out;
         b.next = head_out;
         head_out = tail_out = _block[tail_out].next = bi;
       }
     }
     //
-    int _add_block () {
+    blockindex _add_block () {
       if (_size == _capacity) { // allocate memory if needed
 #ifdef USE_EXACT_FIT
         _capacity += _size >= MAX_ALLOC_SIZE ? MAX_ALLOC_SIZE : _size;
@@ -624,21 +627,21 @@ namespace cedar {
       }
       _block[_size >> 8].ehead = _size;
       _array[_size] = node (- (_size + 255),  - (_size + 1));
-      for (int i = _size + 1; i < _size + 255; ++i) _array[i] = node (- (i - 1), - (i + 1));
+      for (size_type i = _size + 1; i < _size + 255; ++i) _array[i] = node (- (i - 1), - (i + 1));
       _array[_size + 255] = node (- (_size + 254),  -_size);
       _push_block (_size >> 8, _bheadO, ! _bheadO); // append to block Open
       _size += 256;
       return (_size >> 8) - 1;
     }
     // transfer block from one start w/ head_in to one start w/ head_out (Open <-> Closed <-> Full)
-    void _transfer_block (const int bi, int& head_in, int& head_out) {
+    void _transfer_block (const blockindex bi, blockindex& head_in, blockindex& head_out) {
       _pop_block  (bi, head_in, bi == _block[bi].next);
       _push_block (bi, head_out, ! head_out && _block[bi].num);
     }
     // pop empty node from block; never transfer the special block (bi = 0) // XXX Create place for an empty node?
-    int _pop_enode (const int base, const uchar label, const int from) {
-      const int e  = base < 0 ? _find_place () : base ^ label;
-      const int bi = e >> 8;
+    baseindex _pop_enode (const baseindex base, const uchar label, const checkindex from) {
+      const baseindex e  = base < 0 ? _find_place () : base ^ label;
+      const blockindex bi = e >> 8;
       node&  n = _array[e];
       block& b = _block[bi];
       if (--b.num == 0) {  // If block is Closed, transfer to Full...
@@ -660,18 +663,18 @@ namespace cedar {
       return e;
     }
     // push empty node into empty ring
-    void _push_enode (const int e) {
-      const int bi = e >> 8;
+    void _push_enode (const baseindex e) {
+      const blockindex bi = e >> 8;
       block& b = _block[bi];
       if (++b.num == 1) { // Full to Closed
         b.ehead = e;
         _array[e] = node (-e, -e);
         if (bi) _transfer_block (bi, _bheadF, _bheadC); // Full to Closed
       } else {
-        const int prev = b.ehead;
-        const int next = -_array[prev].check;
-        _array[e] = node (-prev, -next);
-        _array[prev].check = _array[next].base_ = -e;
+        const size_type prev = b.ehead;
+        const checkindex next = - _array[prev].check;
+        _array[e] = node (- prev, - next);
+        _array[prev].check = _array[next].base_ = - e;
         if (b.num == 2 || b.trial == MAX_TRIAL)  if (bi) _transfer_block (bi, _bheadC, _bheadO); // Closed to Open  // XXX Simplify (b.num == 2 || b.trial == MAX_TRIAL) && bi?
         b.trial = 0;
       }
@@ -679,58 +682,57 @@ namespace cedar {
       _ninfo[e] = ninfo (); // reset ninfo; no child, no sibling
     }
     // push label to from's child
-    void _push_sibling (const size_t from, const int base, const uchar label, const bool flag = true) {
+    void _push_sibling (const size_t from, const baseindex base, const uchar label, const bool flag = true) {
       uchar* c = &_ninfo[from].child;
       if (flag && (ORDERED ? label > *c : ! *c))
         do c = &_ninfo[base ^ *c].sibling; while (ORDERED && *c && *c < label);
       _ninfo[base ^ label].sibling = *c, *c = label;
     }
     // pop label from from's child
-    void _pop_sibling (const size_t from, const int base, const uchar label) {
+    void _pop_sibling (const size_t from, const baseindex base, const uchar label) {
       uchar* c = &_ninfo[from].child;
       while (*c != label) c = &_ninfo[base ^ *c].sibling;
       *c = _ninfo[base ^ label].sibling;
     }
     // check whether to replace branching w/ the newly added node
-    bool _consult (const int base_n, const int base_p, uchar c_n, uchar c_p) const {
+    bool _consult (const baseindex base_n, const baseindex base_p, uchar c_n, uchar c_p) const {
       //
       do c_n = _ninfo[base_n ^ c_n].sibling, c_p = _ninfo[base_p ^ c_p].sibling; // XXX is this ok? , instead of ; ?
       while (c_n && c_p);
       return c_p;
     }
     // enumerate (equal to or more than one) child nodes
-    uchar* _set_child (uchar* p, const int base, uchar c, const int label = -1) {
+    uchar* _set_child (uchar* p, const baseindex base, uchar c, const int label = -1) {  // label is a type of uchar uchar if set...
       --p;
       if (! c)  { *++p = c; c = _ninfo[base ^ c].sibling; } // 0: terminal
-      if (ORDERED)
-        while (c && c < label) { *++p = c; c = _ninfo[base ^ c].sibling; }
+      if (ORDERED) while (c && c < label) { *++p = c; c = _ninfo[base ^ c].sibling; }
       if (label != -1) *++p = static_cast <uchar> (label);
       while (c) { *++p = c; c = _ninfo[base ^ c].sibling; }
       return p;
     }
     // explore new block to settle down
-    int _find_place () {
+    baseindex _find_place () {
       if (_bheadC) return _block[_bheadC].ehead;
       if (_bheadO) return _block[_bheadO].ehead;
       return _add_block () << 8;  // Allocate new block if no empty space in Open or Closed blocks
     }
     //
-    int _find_place (const uchar* const first, const uchar* const last) {
-      if (int bi = _bheadO) { // if bi != 0: this int's scope is the body of the if.
-        const int   bz = _block[_bheadO].prev;
+    baseindex _find_place (const uchar* const first, const uchar* const last) {
+      if (blockindex bi = _bheadO) { // if bi != 0: this variable's scope is the body of the if.
+        const blockindex   bz = _block[_bheadO].prev;
         const short nc = static_cast <short> (last - first + 1);
         while (1) { // set candidate block
           block& b = _block[bi];
           if (b.num >= nc && nc < b.reject) // explore configuration
-            for (int e = b.ehead;;) {
-              const int base = e ^ *first;
+            for (blockindex e = b.ehead;;) {
+              const baseindex base = e ^ *first;
               for (const uchar* p = first; _array[base ^ *++p].check < 0; )
                 if (p == last) return b.ehead = e; // no conflict
-              if ((e = -_array[e].check) == b.ehead) break;
+              if ((e = - _array[e].check) == b.ehead) break;
             }
           b.reject = nc;
           if (b.reject < _reject[b.num]) _reject[b.num] = b.reject;
-          const int bi_ = b.next; // This const's lifetime is the end of the scope in each loop
+          const blockindex bi_ = b.next; // This const's lifetime is the end of the scope in each loop
           if (++b.trial == MAX_TRIAL) _transfer_block (bi, _bheadO, _bheadC); // Open to Closed
           if (bi == bz) break;
           bi = bi_;
@@ -740,11 +742,11 @@ namespace cedar {
     }
     // resolve conflict on base_n ^ label_n = base_p ^ label_p
     template <typename T>
-    int _resolve (size_t& from_n, const int base_n, const uchar label_n, T& cf) {
+    baseindex _resolve (size_t& from_n, const baseindex base_n, const uchar label_n, T& cf) {
       // examine siblings of conflicted nodes
-      const int to_pn  = base_n ^ label_n;
-      const int from_p = _array[to_pn].check;
-      const int base_p = _array[from_p].base ();
+      const baseindex to_pn  = base_n ^ label_n;
+      const checkindex from_p = _array[to_pn].check;
+      const baseindex base_p = _array[from_p].base ();
       const bool flag // whether to replace siblings of newly added
         = _consult (base_n, base_p, _ninfo[from_n].child, _ninfo[from_p].child);
       uchar child[256];
@@ -752,11 +754,10 @@ namespace cedar {
       uchar* const last  =
         flag ? _set_child (first, base_n, _ninfo[from_n].child, label_n)
         : _set_child (first, base_p, _ninfo[from_p].child);
-      const int base =
-        (first == last ? _find_place () : _find_place (first, last)) ^ *first;
+      const baseindex base = (first == last ? _find_place () : _find_place (first, last)) ^ *first;
       // replace & modify empty list
-      const int from  = flag ? static_cast <int> (from_n) : from_p;
-      const int base_ = flag ? base_n : base_p;
+      const checkindex from  = flag ? static_cast <checkindex> (from_n) : from_p;
+      const baseindex base_  = flag ? base_n : base_p;
       if (flag && *first == label_n) _ninfo[from].child = label_n; // new child
 #ifdef USE_REDUCED_TRIE
       _array[from].base_ = -base - 1; // new base
@@ -764,8 +765,8 @@ namespace cedar {
       _array[from].base_ = base; // new base
 #endif
       for (const uchar* p = first; p <= last; ++p) { // to_ => to
-        const int to  = _pop_enode (base, *p, from);
-        const int to_ = base_ ^ *p;
+        const baseindex to  = _pop_enode (base, *p, from);
+        const baseindex to_ = base_ ^ *p;
         _ninfo[to].sibling = (p == last ? 0 : *(p + 1));
         if (flag && to_ == to_pn) continue; // skip newcomer (no child)
         cf (to_, to); // user-defined callback function to handle moved nodes
@@ -781,7 +782,7 @@ namespace cedar {
             do _array[n.base () ^ c].check = to; // adjust grand son's check
             while ((c = _ninfo[n.base () ^ c].sibling));
           }
-        if (! flag && to_ == static_cast <int> (from_n)) // parent node moved
+        if (! flag && to_ == static_cast <baseindex> (from_n)) // parent node moved
           from_n = static_cast <size_t> (to); // bug fix
         if (! flag && to_ == to_pn) { // the address is immediately used
           _push_sibling (from_n, to_pn ^ label_n, label_n);
@@ -791,7 +792,7 @@ namespace cedar {
 #else
           if (label_n) n_.base_ = -1; else n_.value = value_type (0);
 #endif
-          n_.check = static_cast <int> (from_n);
+          n_.check = static_cast <checkindex> (from_n);
         } else
           _push_enode (to_);
         if (NUM_TRACKING_NODES) // keep the traversed node updated
