@@ -35,7 +35,10 @@ namespace cedar {
             const int     MAX_TRIAL = 1,
             const size_t  NUM_TRACKING_NODES = 0>
   class da {
-      typedef union { int i; value_type x; } nodeelement;
+      typedef int baseindex;
+      typedef int checkindex;
+      typedef int size_type;
+      typedef union { baseindex i; value_type x; } nodeelement;
   public:
     enum error_code { CEDAR_NO_VALUE = NO_VALUE, CEDAR_NO_PATH = NO_PATH, CEDAR_VALUE_LIMIT = 2147483647 };  // 2147483647 == 2^31 − 1
     //
@@ -65,14 +68,14 @@ namespace cedar {
     */
     struct node {
       // Node element:
-      union { int base_; value_type value; }; // negative means prev empty index
-      int  check;                             // negative means next empty index
-      node (const int base__ = 0, const int check_ = 0)
+      union { baseindex base_; value_type value; }; // negative means prev empty index
+      checkindex  check;                            // negative means next empty index
+      node (const baseindex base__ = 0, const checkindex check_ = 0)
         : base_ (base__), check (check_) {}
 #ifdef USE_REDUCED_TRIE
-      int base () const { return - (base_ + 1); } // ~ in two's complement system
+      baseindex base () const { return - (base_ + 1); } // ~ in two's complement system
 #else
-      int base () const { return base_; }
+      baseindex base () const { return base_; }
 #endif
     };
     /*
@@ -117,19 +120,19 @@ namespace cedar {
     //
     size_t capacity   () const { return static_cast <size_t> (_capacity); }
     size_t size       () const { return static_cast <size_t> (_size); }
-    size_t total_size () const { return sizeof (node) * _size; }
+    size_t total_size () const { return sizeof (node) * static_cast <size_t> (_size); }
     size_t unit_size  () const { return sizeof (node); }
     //
     size_t nonzero_size () const {
       size_t i = 0;
-      for (int to = 0; to < _size; ++to)
+      for (size_t to = 0; to < static_cast <size_t> (_size); ++to)
         if (_array[to].check >= 0) ++i;
       return i;
     }
     //
     size_t num_keys () const {
       size_t i = 0;
-      for (int to = 0; to < _size; ++to)
+      for (size_t to = 0; to < static_cast <size_t> (_size); ++to)
 #ifdef USE_REDUCED_TRIE
         if (_array[to].check >= 0 && _array[to].value >= 0) ++i;
 #else
@@ -201,8 +204,8 @@ namespace cedar {
     void suffix(char *key, size_t len, size_t to) const {
       key[len] = '\0';
       while (len--) {
-        const int from = _array[to].check;
-        key[len] = static_cast <char> (_array[from].base () ^ static_cast <int> (to));
+        const checkindex from = _array[to].check;
+        key[len] = static_cast <char> (_array[from].base () ^ static_cast <baseindex> (to));
         to = static_cast <size_t> (from);
       }
     }
@@ -244,17 +247,17 @@ namespace cedar {
         const value_type val_ = _array[from].value;
         if (val_ >= 0 && val_ != CEDAR_VALUE_LIMIT) // always new; correct this!
         {
-          const int to = _follow (from, 0, cf);
+          const size_t to = static_cast <size_t> (_follow (from, 0, cf));  // Only used for array indexing
           _array[to].value = val_;
         }
 #endif
         from = static_cast <size_t> (_follow (from, key_[pos], cf));
       }
 #ifdef USE_REDUCED_TRIE
-      const int to = _array[from].value >= 0 ? static_cast <int> (from) : _follow (from, 0, cf);
+      const size_t to = _array[from].value >= 0 ? from : static_cast <size_t> (_follow (from, 0, cf));  // Only used for array indexing
       if (_array[to].value == CEDAR_VALUE_LIMIT) _array[to].value = 0;
 #else
-      const int to = _follow (from, 0, cf);
+      const size_t to = static_cast <size_t> (_follow (from, 0, cf));  // Only used for array indexing
 #endif
       return _array[to].value += val;
     }
@@ -269,7 +272,7 @@ namespace cedar {
     //
     int erase (const char* key, size_t len, size_t from = 0) {
       size_t pos = 0;
-      const int i = _find (key, from, pos, len);
+      const baseindex i = _find (key, from, pos, len);
       if (i == CEDAR_NO_PATH || i == CEDAR_NO_VALUE) return -1;
       erase (from);
       return 0;
@@ -278,10 +281,10 @@ namespace cedar {
     void erase (size_t from) {
       // _test ();
 #ifdef USE_REDUCED_TRIE
-      int e = _array[from].value >= 0 ? static_cast <int> (from) : _array[from].base () ^ 0;
+      baseindex e = _array[from].value >= 0 ? static_cast <baseindex> (from) : _array[from].base () ^ 0;
       from = static_cast <size_t> (_array[e].check);
 #else
-      int e = _array[from].base () ^ 0;
+      baseindex e = _array[from].base () ^ 0;
 #endif
       bool flag = false; // have sibling
       do {
@@ -289,7 +292,7 @@ namespace cedar {
         flag = _ninfo[n.base () ^ _ninfo[from].child].sibling;
         if (flag) _pop_sibling (from, n.base (), static_cast <uchar> (n.base () ^ e));
         _push_enode (e);
-         e = static_cast <int> (from);
+         e = static_cast <baseindex> (from);
         from = static_cast <size_t> (_array[from].check);
       } while (! flag);
     }
@@ -328,9 +331,9 @@ namespace cedar {
       fp = std::fopen (info, mode);
       delete [] info; // resolve memory leak
       if (! fp) return -1;
-      std::fwrite (&_bheadF, sizeof (int), 1, fp);
-      std::fwrite (&_bheadC, sizeof (int), 1, fp);
-      std::fwrite (&_bheadO, sizeof (int), 1, fp);
+      std::fwrite (&_bheadF, sizeof (_bheadF), 1, fp);
+      std::fwrite (&_bheadC, sizeof (_bheadC), 1, fp);
+      std::fwrite (&_bheadO, sizeof (_bheadO), 1, fp);
       std::fwrite (_ninfo, sizeof (ninfo), static_cast <size_t> (_size), fp);
       std::fwrite (_block, sizeof (block), static_cast <size_t> (_size >> 8), fp);
       std::fclose (fp);
@@ -363,15 +366,15 @@ namespace cedar {
           _err (__FILE__, __LINE__, "memory allocation failed\n");
       if (size_ != std::fread (_array, sizeof (node), size_, fp)) return -1;
       std::fclose (fp);
-      _size = static_cast <int> (size_);
+      _size = static_cast <size_type> (size_);
 #ifdef USE_FAST_LOAD
       const char* const info = std::strcat (std::strcpy (new char[std::strlen (fn) + 5], fn), ".sbl");
       fp = std::fopen (info, mode);
       delete [] info; // resolve memory leak
       if (! fp) return -1;
-      std::fread (&_bheadF, sizeof (int), 1, fp);
-      std::fread (&_bheadC, sizeof (int), 1, fp);
-      std::fread (&_bheadO, sizeof (int), 1, fp);
+      std::fread (&_bheadF, sizeof (_bheadF), 1, fp);
+      std::fread (&_bheadC, sizeof (_bheadC), 1, fp);
+      std::fread (&_bheadO, sizeof (_bheadO), 1, fp);
       if (size_ != std::fread (_ninfo, sizeof (ninfo), size_, fp) ||
           size_ != std::fread (_block, sizeof (block), size_ >> 8, fp) << 8)
         return -1;
@@ -399,7 +402,7 @@ namespace cedar {
     void set_array (void* p, size_t size_ = 0) { // ad-hoc
       clear (false);
       _array = static_cast <node*> (p);
-      _size  = static_cast <int> (size_);
+      _size  = static_cast <size_type> (size_);
       _no_delete = true;
     }
     //
@@ -420,12 +423,12 @@ namespace cedar {
      * while len will be the depth of the node. If you specify some internal node of a trie as from (in other words from != 0),
      * remember to specify the depth of that node in the trie as len.
     */
-    int begin (size_t& from, size_t& len) {
+    baseindex begin (size_t& from, size_t& len) {
 #ifndef USE_FAST_LOAD
       if (! _ninfo) _restore_ninfo ();
 #endif
-      int   base = _array[from].base ();
-      uchar c    = _ninfo[from].child;
+      baseindex base = _array[from].base ();
+      uchar     c    = _ninfo[from].child;
       if (! from && ! (c = _ninfo[base ^ c].sibling)) // bug fix // XXX Simplify Not A And Not B with Not (A Or B)?
         return CEDAR_NO_PATH; // no entry
       for (; c; ++len) {
@@ -445,7 +448,7 @@ namespace cedar {
      * it returns CEDAR_NO_PATH. Upon successful completion, from will point to the next leaf node,
      * while len will be the depth of the node. This function is assumed to be called after calling begin() or next().
     */
-    int next (size_t& from, size_t& len, const size_t root = 0) {
+    baseindex next (size_t& from, size_t& len, const size_t root = 0) {
       uchar c = 0;
 #ifdef USE_REDUCED_TRIE
       if (_array[from].value < 0)
@@ -461,10 +464,10 @@ namespace cedar {
     }
     // test the validity of double array for debug
     void test (const size_t from = 0) const {
-      const int base = _array[from].base ();
+      const baseindex base = _array[from].base ();
       uchar c = _ninfo[from].child;
       do {
-        if (from) assert (_array[base ^ c].check == static_cast <int> (from));
+        if (from) assert (_array[base ^ c].check == static_cast <checkindex> (from));
         if (c  && _array[base ^ c].value < 0) // correct this
           test (static_cast <size_t> (base ^ c));
       } while ((c = _ninfo[base ^ c].sibling));
@@ -477,22 +480,23 @@ namespace cedar {
     da (const da&);
     da& operator= (const da&);
     //
-    node*   _array;
-    ninfo*  _ninfo;
-    block*  _block;
-    int     _bheadF;  // first block of Full;   0
-    int     _bheadC;  // first block of Closed; 0 if no Closed
-    int     _bheadO;  // first block of Open;   0 if no Open
-    int     _capacity;
-    int     _size;
-    bool    _no_delete;  // Bool not int
-    short   _reject[257];
+    node*     _array;
+    ninfo*    _ninfo;
+    block*    _block;
+    int       _bheadF;  // first block of Full;   0
+    int       _bheadC;  // first block of Closed; 0 if no Closed
+    int       _bheadO;  // first block of Open;   0 if no Open
+    size_type _capacity;
+    size_type _size;
+    bool      _no_delete;  // Bool not int
+    short     _reject[257];
     //
-    static void _err (const char* fn, const int ln, const char* msg)
-    { std::fprintf (stderr, "cedar: %s [%d]: %s", fn, ln, msg); std::exit (1); }
+    static void _err (const char* fn, const int ln, const char* msg){
+      std::fprintf (stderr, "cedar: %s [%d]: %s", fn, ln, msg); std::exit (1); }
+    //
     template <typename T>
-    static void _realloc_array (T*& p, const int size_n, const int size_p = 0) {
-      void* tmp = std::realloc (p, sizeof (T) * static_cast <size_t> (size_n));
+    static void _realloc_array (T*& p, const size_t size_n, const size_type size_p = 0) {
+      void* tmp = std::realloc (p, sizeof (T) * size_n);
       if (! tmp)
         std::free (p), _err (__FILE__, __LINE__, "memory reallocation failed\n");
       p = static_cast <T*> (tmp);
