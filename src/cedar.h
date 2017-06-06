@@ -24,7 +24,7 @@ namespace cedar {
   // typedefs
   typedef unsigned char  uchar;
   template <typename T> struct NaN { enum { N1 = -1, N2 = -2 }; };
-  template <> struct NaN <float> { enum { N1 = 0x7f800001, N2 = 0x7f800002 }; };
+  template <> struct NaN <float> { enum { N1 = 0x7f800001, N2 = 0x7f800002 }; };  // 0x7f800001 == +INF +1 and 0x7f800002 == +INF +2
   static const int MAX_ALLOC_SIZE = 1 << 16; // must be divisible by 256 (1 << 16 == 65536 == 256*256)
 
   // dynamic double array
@@ -37,7 +37,7 @@ namespace cedar {
   class da {
       typedef union { int i; value_type x; } nodeelement;
   public:
-    enum error_code { CEDAR_NO_VALUE = NO_VALUE, CEDAR_NO_PATH = NO_PATH, CEDAR_VALUE_LIMIT = 2147483647 };
+    enum error_code { CEDAR_NO_VALUE = NO_VALUE, CEDAR_NO_PATH = NO_PATH, CEDAR_VALUE_LIMIT = 2147483647 };  // 2147483647 == 2^31 − 1
     //
     typedef value_type result_type;
     struct result_pair_type { // for prefix/suffix search
@@ -406,12 +406,12 @@ namespace cedar {
     const void* array () const { return _array; }
     //
     void clear (const bool reuse = true) {
-      if (_array && ! _no_delete) std::free (_array); _array = 0;
+      if (_array && ! _no_delete) std::free (_array); _array = 0;  // XXX _no_delete = false HERE as if freed should not double free...
       if (_ninfo) std::free (_ninfo); _ninfo = 0;
       if (_block) std::free (_block); _block = 0;
       _bheadF = _bheadC = _bheadO = _capacity = _size = 0; // *
-      if (reuse) _initialize ();
-      _no_delete = false;
+      if (reuse) _initialize ();  // XXX _no_delete = false HERE if reinitialised else it should be left as is...
+      _no_delete = false;  // XXX This should be at the above two position in the if statements...
     }
     // return the first child for a tree rooted by a given node
     /*
@@ -485,7 +485,7 @@ namespace cedar {
     int     _bheadO;  // first block of Open;   0 if no Open
     int     _capacity;
     int     _size;
-    int     _no_delete;
+    int     _no_delete;  // XXX Bool
     short   _reject[257];
     //
     static void _err (const char* fn, const int ln, const char* msg)
@@ -620,8 +620,7 @@ namespace cedar {
       }
       _block[_size >> 8].ehead = _size;
       _array[_size] = node (- (_size + 255),  - (_size + 1));
-      for (int i = _size + 1; i < _size + 255; ++i)
-        _array[i] = node (-(i - 1), -(i + 1));
+      for (int i = _size + 1; i < _size + 255; ++i) _array[i] = node (- (i - 1), - (i + 1));
       _array[_size + 255] = node (- (_size + 254),  -_size);
       _push_block (_size >> 8, _bheadO, ! _bheadO); // append to block Open
       _size += 256;
@@ -632,13 +631,13 @@ namespace cedar {
       _pop_block  (bi, head_in, bi == _block[bi].next);
       _push_block (bi, head_out, ! head_out && _block[bi].num);
     }
-    // pop empty node from block; never transfer the special block (bi = 0)
+    // pop empty node from block; never transfer the special block (bi = 0) // XXX Create place for an empty node?
     int _pop_enode (const int base, const uchar label, const int from) {
       const int e  = base < 0 ? _find_place () : base ^ label;
       const int bi = e >> 8;
       node&  n = _array[e];
       block& b = _block[bi];
-      if (--b.num == 0) {
+      if (--b.num == 0) {  // If block is Closed, transfer to Full...
         if (bi) _transfer_block (bi, _bheadC, _bheadF); // Closed to Full
       } else { // release empty node from empty ring
         _array[-n.base_].check = n.check;
@@ -690,6 +689,7 @@ namespace cedar {
     }
     // check whether to replace branching w/ the newly added node
     bool _consult (const int base_n, const int base_p, uchar c_n, uchar c_p) const {
+      //
       do c_n = _ninfo[base_n ^ c_n].sibling, c_p = _ninfo[base_p ^ c_p].sibling; // XXX is this ok? , instead of ; ?
       while (c_n && c_p);
       return c_p;
@@ -708,7 +708,7 @@ namespace cedar {
     int _find_place () {
       if (_bheadC) return _block[_bheadC].ehead;
       if (_bheadO) return _block[_bheadO].ehead;
-      return _add_block () << 8;
+      return _add_block () << 8;  // Allocate new block if no empty space in Open or Closed blocks
     }
     //
     int _find_place (const uchar* const first, const uchar* const last) {
