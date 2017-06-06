@@ -35,6 +35,7 @@ namespace cedar {
             const int     MAX_TRIAL = 1,
             const size_t  NUM_TRACKING_NODES = 0>
   class da {
+      typedef union { int i; value_type x; } nodeelement;
   public:
     enum error_code { CEDAR_NO_VALUE = NO_VALUE, CEDAR_NO_PATH = NO_PATH, CEDAR_VALUE_LIMIT = 2147483647 };
     //
@@ -63,6 +64,7 @@ namespace cedar {
      *        (256i <= c = BASE[p] XOR l< 256(i+1))
     */
     struct node {
+      // Node element:
       union { int base_; value_type value; }; // negative means prev empty index
       int  check;                             // negative means next empty index
       node (const int base__ = 0, const int check_ = 0)
@@ -142,7 +144,7 @@ namespace cedar {
     //
     template <typename T>
     T exactMatchSearch (const char* key, size_t len, size_t from = 0) const {
-      union { int i; value_type x; } b;
+      nodeelement b;
       size_t pos = 0;
       b.i = _find (key, from, pos, len);
       if (b.i == CEDAR_NO_PATH) b.i = CEDAR_NO_VALUE;
@@ -159,7 +161,7 @@ namespace cedar {
     size_t commonPrefixSearch (const char* key, T* result, size_t result_len, size_t len, size_t from = 0) const {
       size_t num = 0;
       for (size_t pos = 0; pos < len; ) {
-        union { int i; value_type x; } b;
+        nodeelement b;
         b.i = _find (key, from, pos, pos + 1); // Here pos is incremented
         if (b.i == CEDAR_NO_VALUE) continue;
         if (b.i == CEDAR_NO_PATH)  return num;
@@ -183,7 +185,7 @@ namespace cedar {
     size_t commonPrefixPredict (const char* key, T* result, size_t result_len, size_t len, size_t from = 0) {
       size_t num (0), pos (0), p (0);
       if (_find (key, from, pos, len) == CEDAR_NO_PATH) return 0; // Here pos is incremented
-      union { int i; value_type x; } b;
+      nodeelement b;
       size_t root = from;
       for (b.i = begin (from, p); b.i != CEDAR_NO_PATH; b.i = next (from, p, root)) {
         if (num < result_len) _set_result (&result[num], b.x, p, from);
@@ -210,7 +212,7 @@ namespace cedar {
     { return traverse (key, from, pos, std::strlen (key)); }
     //
     value_type traverse (const char* key, size_t& from, size_t& pos, size_t len) const {
-      union { int i; value_type x; } b;
+      nodeelement b;
       b.i = _find (key, from, pos, len);
       return b.x;  // XXX b.x is the default value?
     }
@@ -306,7 +308,7 @@ namespace cedar {
     */
     template <typename T>
     void dump (T* result, const size_t result_len) {
-      union { int i; value_type x; } b;
+      nodeelement b;
       size_t num (0), from (0), p (0);
       for (b.i = begin (from, p); b.i != CEDAR_NO_PATH; b.i = next (from, p))
         if (num < result_len)
