@@ -485,7 +485,7 @@ namespace cedar {
     int     _bheadO;  // first block of Open;   0 if no Open
     int     _capacity;
     int     _size;
-    int     _no_delete;  // XXX Bool
+    bool    _no_delete;  // Bool not int
     short   _reject[257];
     //
     static void _err (const char* fn, const int ln, const char* msg)
