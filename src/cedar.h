@@ -438,7 +438,7 @@ namespace cedar {
 #ifdef USE_REDUCED_TRIE
       if (_array[from].value >= 0) return _array[from].value;
 #endif
-      return _array[_array[from].base () ^ c].base_;
+      return _array[_array[from].base () ^ c].base ();
     }
     // return the next child if any
     /*
@@ -491,8 +491,8 @@ namespace cedar {
     bool      _no_delete;  // Bool not int
     short     _reject[257];
     //
-    static void _err (const char* fn, const int ln, const char* msg){
-      std::fprintf (stderr, "cedar: %s [%d]: %s", fn, ln, msg); std::exit (1); }
+    static void _err (const char* fn, const size_t ln, const char* msg){
+      std::fprintf (stderr, "cedar: %s [%lu]: %s", fn, ln, msg); std::exit (1); }
     //
     template <typename T>
     static void _realloc_array (T*& p, const size_t size_n, const size_type size_p = 0) {
@@ -549,7 +549,7 @@ namespace cedar {
 #endif
       const node n = _array[_array[from].base () ^ 0];
       if (n.check != static_cast <int> (from)) return CEDAR_NO_VALUE;
-      return n.base_;
+      return n.base ();
     }
     //
 #ifndef USE_FAST_LOAD
@@ -644,8 +644,8 @@ namespace cedar {
       if (--b.num == 0) {  // If block is Closed, transfer to Full...
         if (bi) _transfer_block (bi, _bheadC, _bheadF); // Closed to Full
       } else { // release empty node from empty ring
-        _array[-n.base_].check = n.check;
-        _array[-n.check].base_ = n.base_;
+        _array[- n.base ()].check = n.check;
+        _array[- n.check].base_ = n.base ();
         if (e == b.ehead) b.ehead = -n.check; // set ehead
         if (bi && b.num == 1 && b.trial != MAX_TRIAL) _transfer_block (bi, _bheadO, _bheadC); // Open to Closed
       }
@@ -772,9 +772,9 @@ namespace cedar {
         node& n  = _array[to];
         node& n_ = _array[to_];
 #ifdef USE_REDUCED_TRIE
-        if ((n.base_ = n_.base_) < 0 && *p) // copy base; bug fix
+        if ((n.base_ = n_.base ()) < 0 && *p) // copy base; bug fix
 #else
-        if ((n.base_ = n_.base_) > 0 && *p) // copy base; bug fix
+        if ((n.base_ = n_.base ()) > 0 && *p) // copy base; bug fix
 #endif
           {
             uchar c = _ninfo[to].child = _ninfo[to_].child;
