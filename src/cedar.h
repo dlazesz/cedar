@@ -25,7 +25,7 @@ namespace cedar {
   typedef unsigned char  uchar;
   template <typename T> struct NaN { enum { N1 = -1, N2 = -2 }; };
   template <> struct NaN <float> { enum { N1 = 0x7f800001, N2 = 0x7f800002 }; };  // 0x7f800001 == +INF +1 and 0x7f800002 == +INF +2
-  static const int MAX_ALLOC_SIZE = 1 << 16; // must be divisible by 256 (1 << 16 == 65536 == 256*256)
+  static const int MAX_ALLOC_SIZE = 1 << 64; // must be divisible by 256 (1 << 16 == 65536 == 256*256, 1 << 64 == more than enough :P )
 
   // dynamic double array
   template <typename value_type,
@@ -35,10 +35,10 @@ namespace cedar {
             const int     MAX_TRIAL = 1,
             const size_t  NUM_TRACKING_NODES = 0>
   class da {
-      typedef int baseindex;
-      typedef int checkindex;
-      typedef int size_type;
-      typedef int blockindex;
+      typedef long baseindex;
+      typedef long checkindex;
+      typedef long size_type;
+      typedef long blockindex;
       typedef union { baseindex i; value_type x; } nodeelement;
   public:
     enum error_code { CEDAR_NO_VALUE = NO_VALUE, CEDAR_NO_PATH = NO_PATH, CEDAR_VALUE_LIMIT = 2147483647 };  // 2147483647 == 2^31 − 1

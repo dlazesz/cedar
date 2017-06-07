@@ -3,7 +3,6 @@
 // Copyright (c) 2013-2014 Naoki Yoshinaga <ynaga@tkl.iis.u-tokyo.ac.jp>
 #include <cstdio>
 #include <cstdlib>
-#define USE_REDUCED_TRIE 1
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
