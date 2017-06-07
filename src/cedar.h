@@ -133,7 +133,7 @@ namespace cedar {
     //
     size_t num_keys () const {
       size_t i = 0;
-      for (size_t to = 0; to < static_cast <size_t> (_size); ++to)
+      for (baseindex to = 0; to < static_cast <baseindex> (_size); ++to)  // because equality check in #else
 #ifdef USE_REDUCED_TRIE
         if (_array[to].check >= 0 && _array[to].value >= 0) ++i;
 #else
