@@ -647,8 +647,8 @@ namespace cedar {
       if (--b.num == 0) {  // If block is Closed, transfer to Full...
         if (bi) _transfer_block (bi, _bheadC, _bheadF); // Closed to Full
       } else { // release empty node from empty ring
-        _array[- n.base ()].check = n.check;
-        _array[- n.check].base_ = n.base ();
+        _array[- n.base_].check = n.check;
+        _array[- n.check].base_ = n.base_;
         if (e == b.ehead) b.ehead = -n.check; // set ehead
         if (bi && b.num == 1 && b.trial != MAX_TRIAL) _transfer_block (bi, _bheadO, _bheadC); // Open to Closed
       }
@@ -773,9 +773,9 @@ namespace cedar {
         node& n  = _array[to];
         node& n_ = _array[to_];
 #ifdef USE_REDUCED_TRIE
-        if ((n.base_ = n_.base ()) < 0 && *p) // copy base; bug fix
+        if ((n.base_ = n_.base_) < 0 && *p) // copy base; bug fix
 #else
-        if ((n.base_ = n_.base ()) > 0 && *p) // copy base; bug fix
+        if ((n.base_ = n_.base_) > 0 && *p) // copy base; bug fix
 #endif
           {
             uchar c = _ninfo[to].child = _ninfo[to_].child;
