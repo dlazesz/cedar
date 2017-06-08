@@ -6,6 +6,13 @@ If you make use of cedar for research or commercial purposes, the reference will
 
   N. Yoshinaga and M. Kitsuregawa. A Self-adaptive Classifier for Efficient Text-stream Processing. Proc. COLING 2014, 2014.
 
+Modifications
+-------------
+
+Cedar had a limitation on keys in favour of memory usage. **This modified version is able to handle more than 10^9 keys, but has more memory usage.**
+The trie must be declared with `long` type insted of `int` for the reduced trie to work!
+**Keys with `\00` in them and zero length keys still not supported!**
+
 License
 ======
 GNU GPLv2, LGPLv2.1, and BSD (see License file)
