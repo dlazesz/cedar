@@ -35,7 +35,7 @@ namespace cedar {
             const int     MAX_TRIAL = 1,
             const size_t  NUM_TRACKING_NODES = 0>
   class da {
-      typedef long baseindex;
+      typedef long baseindex;  // XXX This type is associated with value_type maybe there is more!
       typedef long checkindex;
       typedef long size_type;
       typedef long blockindex;
@@ -113,7 +113,7 @@ namespace cedar {
     };
     //
     da () : tracking_node (), _array (0), _ninfo (0), _block (0), _bheadF (0), _bheadC (0), _bheadO (0), _capacity (0), _size (0), _no_delete (false), _reject () {
-      static_assert (sizeof (value_type) <= sizeof (int), "value type is not supported maintain_a value array by yourself and store its index");
+      static_assert (sizeof (value_type) <= sizeof (baseindex), "value type is not supported maintain a value array by yourself and store its index");
       _initialize ();
     }
     //
@@ -493,7 +493,7 @@ namespace cedar {
     short      _reject[257];
     //
     static void _err (const char* fn, const size_t ln, const char* msg){
-      std::fprintf (stderr, "cedar: %s [%lu]: %s", fn, ln, msg); std::exit (1); }
+      std::fprintf (stderr, "cedar: %s [%zu]: %s", fn, ln, msg); std::exit (1); }
     //
     template <typename T>
     static void _realloc_array (T*& p, const size_t size_n, const size_type size_p = 0) {
@@ -519,7 +519,7 @@ namespace cedar {
       _block[0].ehead = 1; // bug fix for erase
       _capacity = _size = 256;
       for (size_t i = 0 ; i <= NUM_TRACKING_NODES; ++i) tracking_node[i] = 0;
-      for (short i = 0; i <= 256; ++i) _reject[i] = i + 1;
+      for (short i = 1; i <= 257; ++i) _reject[i-1] = i;  // This version do not cast i + 1 up to int
     }
     // follow/create edge
     template <typename T>
@@ -555,7 +555,7 @@ namespace cedar {
     //
 #ifndef USE_FAST_LOAD
     void _restore_ninfo () {
-      _realloc_array (_ninfo, _size);
+      _realloc_array (_ninfo, static_cast<size_t>(_size));
       for (size_type to = 0; to < _size; ++to) {
         const checkindex from = _array[to].check;
         if (from < 0) continue; // skip empty node
@@ -567,7 +567,7 @@ namespace cedar {
     }
     //
     void _restore_block () {
-      _realloc_array (_block, _size >> 8);
+      _realloc_array (_block, static_cast<size_t>(_size) >> 8);
       _bheadF = _bheadC = _bheadO = 0;
       blockindex bi (0);
       size_type e (0);
@@ -621,9 +621,9 @@ namespace cedar {
 #else
         _capacity += _capacity; // Double capacity
 #endif
-        _realloc_array (_array, _capacity, _capacity);
-        _realloc_array (_ninfo, _capacity, _size);
-        _realloc_array (_block, _capacity >> 8, _size >> 8); // _capacity / 256, _size / 256 to match blocksize == 256
+        _realloc_array (_array, static_cast<size_t>(_capacity), _capacity);
+        _realloc_array (_ninfo, static_cast<size_t>(_capacity), _size);
+        _realloc_array (_block, static_cast<size_t>(_capacity) >> 8, _size >> 8); // _capacity / 256, _size / 256 to match blocksize == 256
       }
       _block[_size >> 8].ehead = _size;
       _array[_size] = node (- (_size + 255),  - (_size + 1));
@@ -767,7 +767,10 @@ namespace cedar {
       for (const uchar* p = first; p <= last; ++p) { // to_ => to
         const baseindex to  = _pop_enode (base, *p, from);
         const baseindex to_ = base_ ^ *p;
-        _ninfo[to].sibling = (p == last ? 0 : *(p + 1));
+
+        if (p == last) _ninfo[to].sibling = 0;  // This is more readable
+        else _ninfo[to].sibling = *(p + 1);
+
         if (flag && to_ == to_pn) continue; // skip newcomer (no child)
         cf (to_, to); // user-defined callback function to handle moved nodes
         node& n  = _array[to];
