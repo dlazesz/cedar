@@ -477,7 +477,7 @@ namespace cedar {
     size_t tracking_node[NUM_TRACKING_NODES + 1];
     //
     void set_max_alloc (const size_t max = 0) {
-        max_alloc = max;
+        _max_alloc = max;
     }
     // ------------------------------------------------ END interfance -------------------------------------------------
   private:
@@ -495,7 +495,7 @@ namespace cedar {
     size_type  _size;
     bool       _no_delete;  // Bool not int
     short      _reject[257];
-    size_t     max_alloc = 0;
+    size_t     _max_alloc = 0;
     //
     static void _err (const char* fn, const size_t ln, const char* msg){
       std::fprintf (stderr, "cedar: %s [%zu]: %s", fn, ln, msg); std::exit (1); }
@@ -624,27 +624,42 @@ namespace cedar {
 #ifdef USE_EXACT_FIT
         _capacity += _size >= MAX_ALLOC_SIZE ? MAX_ALLOC_SIZE : _size;
 #else
-        size_type last_good_capacity = _capacity;
+  #ifndef ALLOCATE_MEMORY_AT_ONCE
         _capacity += _capacity; // Double capacity
-            size_t desired_alloc = sizeof(*_array) * static_cast<size_t>(_capacity) +
-                                   sizeof(*_ninfo) * static_cast<size_t>(_capacity) +
-                                   sizeof(*_ninfo) * (static_cast<size_t>(_capacity) >> 8);
-          if (max_alloc > 0 and desired_alloc > max_alloc) {
-            while (desired_alloc > max_alloc) {
-                _capacity -= 256;
+  #else
+        if (_max_alloc == 0) {
+          std::fprintf (stderr, "ERROR: Memory limit is not set or 0, but ALLOCATE_MEMORY_AT_ONCE is!\n");
+          std::free (_array); std::free (_ninfo); std::free (_block);
+          std::exit (1);
+        }
+  #endif
+        size_t desired_alloc = sizeof(*_array) * static_cast<size_t>(_capacity) +
+                               sizeof(*_ninfo) * static_cast<size_t>(_capacity) +
+                               sizeof(*_ninfo) * (static_cast<size_t>(_capacity) >> 8);
+  #ifndef ALLOCATE_MEMORY_AT_ONCE
+        if (_max_alloc > 0 and desired_alloc > _max_alloc) {  // Doubling capacity is too mutch!
+            _capacity = _size;                              // Go back to current capacity and grow it!
+
+  #else
+        if (_max_alloc > 0 and desired_alloc < _max_alloc) {  // Current capacity is less than maxium
+                                                            // Grow it!
+  #endif
+
+            while (desired_alloc < _max_alloc) {
+                _capacity += 256;
                 desired_alloc = sizeof(*_array) * static_cast<size_t>(_capacity) +
                                 sizeof(*_ninfo) * static_cast<size_t>(_capacity) +
                                 sizeof(*_ninfo) * (static_cast<size_t>(_capacity) >> 8);
             }
-              if (_size >= _capacity or _capacity <= last_good_capacity) {
+              _capacity -= 256;  // Return to the last good value
+              if (_size >= _capacity) {
                   std::fprintf (stderr,
                                 "ERROR: Memory limit too low (last capacity [desired capacity], max memory [desired memory]: %zu [%zu], %zu [%zu]\n",
-                                static_cast<size_t>(last_good_capacity), static_cast<size_t>(_capacity), max_alloc, desired_alloc);
+                                static_cast<size_t>(_size), static_cast<size_t>(_capacity), _max_alloc, desired_alloc);
                   std::free (_array); std::free (_ninfo); std::free (_block);
                   std::exit (1);
               }
         }
-
 #endif
         _realloc_array (_array, static_cast<size_t>(_capacity), _capacity);
         _realloc_array (_ninfo, static_cast<size_t>(_capacity), _size);
