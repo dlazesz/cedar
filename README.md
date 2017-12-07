@@ -1,4 +1,4 @@
-Cedar (June 24th 2014)
+Cedar
 =====
 This is a C++ implementation of efficiently-updatable double-array trie, developed by Naoki Yoshinaga at Kitsuregawa, Toyoda Lab., IIS, University of Tokyo.
 
@@ -9,9 +9,13 @@ If you make use of cedar for research or commercial purposes, the reference will
 Modifications
 -------------
 
+All modifications originate form Cedar (June 24th 2014).
 Cedar had a limitation on keys in favour of memory usage. **This modified version is able to handle more than 10^9 keys, but has more memory usage.**
 The trie must be declared with `long` type insted of `int` for the reduced trie to work!
+Build script has changed from **automake** to **cmake**.
+
 **Keys with `\00` in them and zero length keys still not supported!**
+
 
 License
 ======
@@ -28,8 +32,9 @@ Website: http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/cedar
 Setup
 ======
 
-1. $ ./configure
-2. $ sudo make install
+1. $ mkdir build && cd build
+2. $ cmake .. && make && sudo make install
+
 
 For using as a library the only needed files are:
 
@@ -40,6 +45,6 @@ There are standalone tools:
 
 - mkcedar: Create tree from text file
 - cedar: Interactive demo on different search functions
-- simple.cpp is a simple demo on usage (not compiled with make install)
+- simple.cc is a simple demo on usage (not installed with make install)
 
 For detailed API reference visit the website: http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/cedar

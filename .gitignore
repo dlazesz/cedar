@@ -33,3 +33,20 @@
 
 # Autotools stuff
 .deps/
+
+# CMake stuff
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+src/cmake_uninstall.cmake
+*.bcp
+build
+
+# JetBrains IDE
+.idea/
