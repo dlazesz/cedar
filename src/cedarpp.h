@@ -13,9 +13,9 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <cstring> //std::strlen
 #include <climits>
-#include <cassert>
+#include <cassert> //assert
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -30,7 +30,7 @@ namespace cedar {
 #else
   typedef unsigned long long  npos_t;
 #endif
-  typedef unsigned char       uchar;
+  typedef unsigned char  uchar;
   static const npos_t TAIL_OFFSET_MASK = static_cast <npos_t> (0xffffffff);
   static const npos_t NODE_INDEX_MASK  = static_cast <npos_t> (0xffffffff) << 32;
   template <typename T> struct NaN { enum { N1 = -1, N2 = -2 }; };
@@ -77,13 +77,15 @@ namespace cedar {
       int   ehead;  // first empty item
       block () : prev (0), next (0), num (256), reject (257), trial (0), ehead (0) {}
     };
-    da () : tracking_node (), _array (0), _tail (0), _tail0 (0), _ninfo (0), _block (0), _bheadF (0), _bheadC (0), _bheadO (0), _capacity (0), _size (0), _quota (0), _quota0 (0), _no_delete (false), _reject () {
+    
+	da () : tracking_node (), _array (0), _tail (0), _tail0 (0), _ninfo (0), _block (0), _bheadF (0), _bheadC (0), _bheadO (0), _capacity (0), _size (0), _quota (0), _quota0 (0), _no_delete (false), _reject () {
       STATIC_ASSERT(sizeof (value_type) <= sizeof (int),
-                    value_type_is_not_supported___maintain_a_value_array_by_yourself_and_store_its_index_to_trie
+                    value_type_is_not_supported___maintain_a_value_array_by_yourself_and_store_its_index
                     );
       _initialize ();
     }
     ~da () { clear (false); }
+
     size_t capacity   () const { return static_cast <size_t> (_capacity); }
     size_t size       () const { return static_cast <size_t> (_size); }
     size_t length     () const { return static_cast <size_t> (*_length); }
@@ -116,6 +118,7 @@ namespace cedar {
     template <typename T>
     T exactMatchSearch (const char* key) const
     { return exactMatchSearch <T> (key, std::strlen (key)); }
+
     template <typename T>
     T exactMatchSearch (const char* key, size_t len, npos_t from = 0) const {
       union { int i; value_type x; } b;
@@ -126,9 +129,11 @@ namespace cedar {
       _set_result (&result, b.x, len, from);
       return result;
     }
+
     template <typename T>
     size_t commonPrefixSearch (const char* key, T* result, size_t result_len) const
     { return commonPrefixSearch (key, result, result_len, std::strlen (key)); }
+
     template <typename T>
     size_t commonPrefixSearch (const char* key, T* result, size_t result_len, size_t len, npos_t from = 0) const {
       size_t num = 0;
@@ -146,6 +151,7 @@ namespace cedar {
     template <typename T>
     size_t commonPrefixPredict (const char* key, T* result, size_t result_len)
     { return commonPrefixPredict (key, result, result_len, std::strlen (key)); }
+
     template <typename T>
     size_t commonPrefixPredict (const char* key, T* result, size_t result_len, size_t len, npos_t from = 0) {
       size_t num (0), pos (0), p (0);
@@ -153,13 +159,13 @@ namespace cedar {
       union { int i; value_type x; } b;
       const npos_t root = from;
       for (b.i = begin (from, p); b.i != CEDAR_NO_PATH; b.i = next (from, p, root)) {
-        if (num < result_len)
-          _set_result (&result[num], b.x, p, from);
+        if (num < result_len) _set_result (&result[num], b.x, p, from);
         ++num;
       }
       return num;
     }
-    void suffix (char* key, size_t len, npos_t to) const {
+
+    void suffix(char *key, size_t len, npos_t to) const {
       key[len] = '\0';
       if (const int offset = static_cast <int> (to >> 32)) {
         to &= TAIL_OFFSET_MASK;
@@ -169,17 +175,20 @@ namespace cedar {
       }
       while (len--) {
         const int from = _array[to].check;
-        key[len] = static_cast <char> (_array[from].base ^ static_cast <int> (to));
+        key[len]
+          = static_cast <char> (_array[from].base ^ static_cast <int> (to));
         to = static_cast <npos_t> (from);
       }
     }
     value_type traverse (const char* key, npos_t& from, size_t& pos) const
     { return traverse (key, from, pos, std::strlen (key)); }
+
     value_type traverse (const char* key, npos_t& from, size_t& pos, size_t len) const {
       union { int i; value_type x; } b;
       b.i = _find (key, from, pos, len);
       return b.x;
     }
+
     struct empty_callback { void operator () (const int, const int) {} }; // dummy empty function
     value_type& update (const char* key)
     { return update (key, std::strlen (key)); }
@@ -187,6 +196,7 @@ namespace cedar {
     { npos_t from (0); size_t pos (0); return update (key, from, pos, len, val); }
     value_type& update (const char* key, npos_t& from, size_t& pos, size_t len, value_type val = value_type (0))
     { empty_callback cf; return update (key, from, pos, len, val, cf); }
+
     template <typename T>
     value_type& update (const char* key, npos_t& from, size_t& pos, size_t len, value_type val, T& cf) {
       if (! len && ! from)
@@ -302,7 +312,7 @@ namespace cedar {
         flag = _ninfo[n.base ^ _ninfo[from].child].sibling;
         if (flag) _pop_sibling (from, n.base, static_cast <uchar> (n.base ^ e));
         _push_enode (e);
-        e = static_cast <int> (from);
+         e = static_cast <int> (from);
         from = static_cast <size_t> (_array[from].check);
       } while (! flag);
       return 0;
@@ -375,6 +385,7 @@ namespace cedar {
 #endif
       return 0;
     }
+
     int open (const char* fn, const char* mode = "rb",
               const size_t offset = 0, size_t size_ = 0) {
       FILE* fp = std::fopen (fn, mode);
@@ -498,9 +509,10 @@ namespace cedar {
         from = static_cast <size_t> (_array[from].check);
       }
       if (! c) return CEDAR_NO_PATH;
-      return begin (from = static_cast <size_t> (_array[from].base) ^ c, ++len);
+      return begin (from = static_cast <size_t> (_array[from].base) ^ c, ++len) ;
     }
     npos_t tracking_node[NUM_TRACKING_NODES + 1];
+
   private:
     // currently disabled; implement these if you need
     da (const da&);
@@ -540,8 +552,8 @@ namespace cedar {
       _array[0] = node (0, -1);
       for (int i = 1; i < 256; ++i)
         _array[i] = node (i == 1 ? -255 : - (i - 1), i == 255 ? -1 : - (i + 1));
-      _capacity = _size = 256;
       _block[0].ehead = 1; // bug fix for erase
+      _capacity = _size = 256;
       _quota  = *_length  = static_cast <int> (sizeof (int));
       _quota0 = 1;
       for (size_t i = 0 ; i <= NUM_TRACKING_NODES; ++i) tracking_node[i] = 0;
@@ -684,8 +696,7 @@ namespace cedar {
           _transfer_block (bi, _bheadO, _bheadC);
       }
       // initialize the released node
-      if (label) n.base = -1; else n.value = value_type (0);
-      n.check = from;
+      if (label) n.base = -1; else n.value = value_type (0); n.check = from;
       if (base < 0) _array[from].base = e ^ label;
       return e;
     }
@@ -702,9 +713,8 @@ namespace cedar {
         const int next = -_array[prev].check;
         _array[e] = node (-prev, -next);
         _array[prev].check = _array[next].base = -e;
-        if (b.num == 2 || b.trial == MAX_TRIAL) { // Closed to Open
+        if (b.num == 2 || b.trial == MAX_TRIAL) // Closed to Open
           if (bi) _transfer_block (bi, _bheadC, _bheadO);
-        }
         b.trial = 0;
       }
       if (b.reject < _reject[b.num]) b.reject = _reject[b.num];
@@ -764,7 +774,7 @@ namespace cedar {
           if (++b.trial == MAX_TRIAL) _transfer_block (bi, _bheadO, _bheadC);
           if (bi == bz) break;
           bi = bi_;
-        }
+        };
       }
       return _add_block () << 8;
     }
@@ -794,14 +804,15 @@ namespace cedar {
         const int to_ = base_ ^ *p;
         _ninfo[to].sibling = (p == last ? 0 : *(p + 1));
         if (flag && to_ == to_pn) continue; // skip newcomer (no child)
-        cf (to_, to);
+        cf (to_, to); // user-defined callback function to handle moved nodes
         node& n  = _array[to];
         node& n_ = _array[to_];
-        if ((n.base = n_.base) > 0 && *p) { // copy base; bug fix
-          uchar c = _ninfo[to].child = _ninfo[to_].child;
-          do _array[n.base ^ c].check = to; // adjust grand son's check
-          while ((c = _ninfo[n.base ^ c].sibling));
-        }
+        if ((n.base = n_.base) > 0 && *p) // copy base; bug fix
+          {
+            uchar c = _ninfo[to].child = _ninfo[to_].child;
+            do _array[n.base ^ c].check = to; // adjust grand son's check
+            while ((c = _ninfo[n.base ^ c].sibling));
+          }
         if (! flag && to_ == static_cast <int> (from_n)) // parent node moved
           from_n = static_cast <size_t> (to); // bug fix
         if (! flag && to_ == to_pn) { // the address is immediately used
