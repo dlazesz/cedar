@@ -130,6 +130,22 @@ namespace cedar {
       return result;
     }
 
+    template <typename T, typename TSentinel>
+    size_t commonPrefixSearch (const char* key, T* result, size_t result_len, TSentinel sentinel) const
+    {
+      npos_t from = 0;
+      size_t num = 0;
+      for (size_t pos = 0; key[pos] != sentinel; ) { // break when key[pos] == '\0'
+        union { int i; value_type x; } b;
+        b.i = _find(key, from, pos, pos + 1);
+        if (b.i == CEDAR_NO_VALUE) continue;
+        if (b.i == CEDAR_NO_PATH)  return num;
+        if (num < result_len) _set_result(&result[num], b.x, pos, from);
+        ++num;
+      }
+      return num;
+	}
+
     template <typename T>
     size_t commonPrefixSearch (const char* key, T* result, size_t result_len) const
     { return commonPrefixSearch (key, result, result_len, std::strlen (key)); }
@@ -451,6 +467,32 @@ namespace cedar {
       _quota0 = 1;
     }
 #endif
+    // remove all the keys while keeping the memoryallocation
+    void reset() {
+      // initialize existing arrays while keeping the size
+      _realloc_array(_array, _capacity, 256);
+      _realloc_array(_tail, _quota);
+      _realloc_array(_tail0, _quota0);
+      _realloc_array(_ninfo, _capacity);
+      _realloc_array(_block, _capacity >> 8);
+
+      // initialize first block
+      _array[0] = node(0, -1);
+      _array[1] = node(-255, -2);
+      for (int i = 2; i < 255; ++i)
+        _array[i] = node(-(i - 1), -(i + 1));
+      _array[255] = node(-254, -1);
+
+      _size = 256;
+      _block[0].ehead = 1; // bug fix for erase
+      *_length = static_cast <int> (sizeof (int));
+      _bheadF = _bheadC = _bheadO = 0;
+      for (size_t i = 0; i <= NUM_TRACKING_NODES; ++i)
+        tracking_node[i] = 0;
+      for (short i = 0; i <= 256; ++i)
+        _reject[i] = i + 1;
+    }
+
     void set_array (void* p, size_t size_ = 0) { // ad-hoc
       clear (false);
       if (size_)

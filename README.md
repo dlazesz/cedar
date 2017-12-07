@@ -9,13 +9,14 @@ If you make use of cedar for research or commercial purposes, the reference will
 Modifications
 -------------
 
-All modifications originate form Cedar (June 24th 2014).
-Cedar had a limitation on keys in favour of memory usage. **This modified version is able to handle more than 10^9 keys, but has more memory usage.**
-The trie must be declared with `long` type insted of `int` for the reduced trie to work!
-Build script has changed from **automake** to **cmake**.
+All modifications originate form Cedar (June 24th 2014):
+- Cedar had a limitation on keys in favour of memory usage. **This modified version is able to handle more than 10^9 keys, but has more memory usage.** The trie must be declared with `long` type insted of `int` for the reduced trie to work!
+- Build script has changed from **automake** to **cmake**.
+- Efficient reset method to reset the trie without reallocating the memory (from: https://github.com/KrishnaPG/cedar)
+- Additional CommonPrefixSearch() based on sentinel (without the need for computing the string length) (from: https://github.com/KrishnaPG/cedar)
+- Add option to set memory upperbound and change behaviour to try to allocate less memory if the allocation of double amount is failed.
 
 **Keys with `\00` in them and zero length keys still not supported!**
-
 
 License
 ======
