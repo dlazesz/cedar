@@ -1,6 +1,5 @@
 
 #include <cstdio>
-#include <cstdlib>
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
@@ -22,7 +21,8 @@ inline void insert_key(cedar::da<T> &t, const char* key, T new_value)
 template<typename T>
 inline bool lookup_key(cedar::da<T> &t, const char* key)
 {
-  return t.exactMatchSearch<int>(key) >= 0;
+  // Solution from: https://stackoverflow.com/a/3786454
+  return t.template exactMatchSearch<int>(key) >= 0;
 }
 
 // --------------------------------------------------------------------------------------------------------------------
